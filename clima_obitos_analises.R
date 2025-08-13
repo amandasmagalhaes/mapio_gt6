@@ -671,7 +671,7 @@ below <- temp <= mmt
 above <- temp > mmt
 
 # Plot base do red1
-plot(red1, xlab = "Temperatura", ylab = "Risco Relativo (RR)",
+plot(red1, xlab = "Temperatura", ylab = "Risco Relativo",
      main = "Curva Temperatura–Mortalidade",
      xaxt = "n", yaxt = "n", ylim = c(0.8, 2.4))
 axis(1, at = seq(12, 32, by = 1))
