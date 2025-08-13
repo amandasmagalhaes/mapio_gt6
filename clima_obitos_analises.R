@@ -34,7 +34,7 @@ pacman::p_load(
   # Correlação
   "Hmisc", "reshape2",
   # Modelagem
-  "splines"
+  "splines", "gnm", "dlnm"
 )
 
 
@@ -398,17 +398,20 @@ ggsave("correlacao.jpg", width = 21, height = 12, units = "in", dpi = 300)
 
 
 
-## Modelos ####
+
+## Modelo ####
 
 
 
 ### 1. Modelo de Poisson condicional com termo DNLM para temperatura ####
+# DLNMs: Modelos não lineares de defasagem distribuída.
 
 
-# Queremos analisar as associações entre temperatura e mortalidade. 
-# Cada linha corresponde a uma data. 
-# Também construímos uma variável de estrato para o modelo de Poisson condicional (CP). 
-# O estrato é definido por ano, mês e dia da semana.
+
+# Objetivo: investigar a associação entre temperatura e mortalidade. 
+# Cada linha representa uma data.
+# Criamos uma variável de estrato (ano, mês e dia da semana) 
+# para controlar sazonalidade e variação semanal.
 
 dta <- dta |> 
   mutate(strata = paste(year(data),
@@ -417,31 +420,272 @@ dta <- dta |>
                         sep = ":") |> factor())
 
 
-# Usamos splines naturais (cúbicas) para capturar as associações não lineares. 
-# Aqui, especificamos a localização dos nós no espaço do preditor 
-# (ou seja, os nós para a dimensão da temperatura).
+
+# Splines cúbicos naturais permitem modelar associações não lineares entre temperatura e mortalidade.
+# pred_knots define os "nós" do spline, aqui nos quantis 10%, 75% e 90% da temperatura.
+
 pred_knots <- quantile(dta$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
-
-# Ver os valores criados: eles estão em graus de temperatura.
-pred_knots 
+pred_knots # valores dos nós em °C
 
 
-# Especificamos a localização dos nós no espaço de defasagens (lags) escolhendo 
-# o número de lags a incluir no modelo e o número de nós a incluir nesse espaço.
-# Isso é feito para que usemos menos de 21 coeficientes ao modelar as defasagens.
+
+# Definimos o número máximo de lags (n_lag = 21 dias) e os nós para o spline de defasagem.
+# logknots() concentra mais nós nos primeiros dias (efeitos imediatos) 
+# e menos nos lags longos (efeitos graduais).
+
 n_lag <- 21
+
 lag_knots <- logknots(n_lag, nk = 3)
+lag_knots
+
+
+
+# Visualizar a distribuição dos lags e dos nós do spline de defasagem.
+# Nós (lagknots) estão destacados para mostrar onde o efeito pode mudar rapidamente.
+
+# Data frame com todos os lags
+df <- data.frame(lag = 1:n_lag, tipo = "Lags")
+
+# Data frame apenas com os nós
+df_knots <- data.frame(lag = lag_knots, tipo = "Lagknots")
+
+# Plot
+ggplot() +
+  geom_point(data = df, aes(x = lag, y = 1, color = tipo), size = 3) +
+  geom_point(data = df_knots, aes(x = lag, y = 1, color = tipo), size = 4, shape = 15) +
+  scale_color_manual(values = c("Lags" = "#253C9C", "Lagknots" = "#D64933")) +
+  scale_x_continuous(breaks = 1:n_lag) +
+  labs(x = "\n Lag (dias)", y = "", color = "", 
+       title = "Distribuição de 3 nós (lagknots) em 21 lags \n") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank())
+
+ggsave("lagknots.jpg", width = 21, height = 12, units = "in", dpi = 300)
+
+
+
+# Criamos a cross-basis combinando temperatura (exposição) e defasagem (lags) de forma não linear.
+# argvar: spline cúbico natural para temperatura, com nós em pred_knots.
+# arglag: spline cúbico natural para lags, com nós em lag_knots.
+
+cb1 <- crossbasis(dta$temp_media,
+                  lag = n_lag,
+                  argvar = list(fun = "ns", knots = pred_knots),
+                  arglag = list(fun = "ns", knots = lag_knots))
+
+summary(cb1)
+
+count(dta)
+summary(dta$temp_media)
+n_lag
+pred_knots
+lag_knots
+
+
+
+# cb1: cross-basis com 4018 observações (dias) e 20 colunas (graus de liberdade do spline).
+# Os 20 coeficientes correspondem a todas as combinações possíveis dos 4 graus de liberdade da temperatura 
+# com os 5 graus de liberdade da defasagem (lags).
+# coeficientes = df temperatura × df lag = 4 × 5 = 20.
+# As primeiras 21 linhas são NA porque o cálculo dos efeitos considera os 21 dias anteriores, 
+# que não estão disponíveis no início da série.
+
+View(cb1)
+
+
+
+# Ajuste do modelo CP-DLNM:
+# - Inclui a cross-basis (cb1) para temperatura e lags
+# - Estrato (strata) controla sazonalidade e variação semanal
+# - Quasi-Poisson para lidar com superdispersão em contagens de óbitos
+
+modelo1 <- gnm(obitos_total ~ cb1,
+               eliminate = strata,
+               family = quasipoisson(),
+               data = dta)
+
+summary(modelo1)  # 20 coeficientes correspondentes ao termo cb1
+
+
+
+# Valores extremos e central da temperatura média
+
+
+# Temperatura média mínima
+temp_media_min <- min(dta$temp_media)
+temp_media_min
+
+# Temperatura média máxima
+temp_media_max <- max(dta$temp_media)
+temp_media_max
+
+# Mediana da temperatura média
+temp_media_mediana <- median(dta$temp_media)
+temp_media_mediana
+
+
+
+# Gera a superfície temperatura–lag–mortalidade a partir do modelo ajustado:
+# - Eixo x: temperatura (°C)
+# - Eixo y: lags (dias após a exposição)
+# - Eixo z: risco de mortalidade relativo
+# A superfície mostra como o efeito da temperatura sobre a mortalidade varia ao longo do tempo.
+# Inicialmente, centralizada na temperatura mediana; permite calcular efeitos cumulativos ao longo dos lags.
+# Posteriormente, pode-se centralizar na MMT (temperatura de menor mortalidade).
+
+pred1 <- crosspred(cb1,                                     
+                   modelo1,
+                   at = seq(temp_media_min, temp_media_max, by = 0.1),
+                   cen = temp_media_mediana,
+                   cumul = TRUE)                    
+
+# Plot
+
+plot(pred1, xlab = "Temperatura (°C)", 
+     ylab = "Lag (dias)", 
+     zlab = "RR",
+     main = "Superfície de Associação Temperatura–Mortalidade")
+
+dev.copy(jpeg, filename = "superficie.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
+
+
+
+# Redução da superfície temperatura–lag–mortalidade apenas para a dimensão da temperatura
+# - Calcula a curva de risco relativo (RR) da temperatura sobre a mortalidade
+# - Resume os coeficientes necessários para reconstruir a curva completa
+# - Grade fina de 0,1 °C, centralizada na temperatura mediana
+
+red1 <- crossreduce(cb1,
+                    modelo1,
+                    at = seq(temp_media_min, temp_media_max, by = 0.1),
+                    cen = temp_media_mediana)
+
+# Plot
+
+plot(red1, xlab = "Temperatura (°C)", ylab = "Risco Relativo",
+     main = "Curva de Associação Temperatura–Mortalidade",
+     xaxt = "n", yaxt = "n", ylim = c(0.8, 2.4))
+axis(1, at = seq(12, 32, by = 1))
+axis(2, at = seq(0.8, 2.4, by = 0.2))
+
+# Sobrepõe pontos vermelhos para mostrar exatamente em quais valores de temperatura 
+# a curva de risco relativo foi estimada.
+points(red1$predvar, red1$RRfit, col = "#D64933")
+
+legend(x = 29, y = 0.9,
+       legend = "Valores estimados", 
+       col = "#D64933", pch = 1, bty = "n")
+
+dev.copy(jpeg, filename = "curva_temp_mort.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
 
 
 
 
 
+# No modelo original (modelo1), existem 20 coeficientes que produzem a superfície
+# temperatura–lag–mortalidade. Essa superfície combina os 4 graus de liberdade da temperatura
+# com os 5 graus de liberdade dos lags. A matriz de variância–covariância é 20x20,
+# mostrando a incerteza e a correlação entre todos esses coeficientes.
+
+modelo1$coefficients
+vcov(modelo1)
+
+
+# Após reduzir a superfície ao longo dos lags usando crossreduce (red1),
+# apenas 4 coeficientes são necessários para calcular a curva temperatura–mortalidade.
+# A matriz de variância–covariância desses 4 coeficientes é 4x4,
+# refletindo a incerteza da curva resumida.
+
+red1$coefficients
+red1$vcov
 
 
 
 
 
+# Queremos garantir que a curva de risco relativo seja centralizada na temperatura 
+# que apresenta o menor risco de mortalidade, chamada MMT (Temperatura de Mortalidade Mínima). 
+# Para isso, precisamos reexecutar as funções crosspred ou crossreduce com um novo valor de centralização (cen=).
 
+
+# A função abaixo, get_cen, serve para encontrar a temperatura de menor risco.
+# Ela aceita a saída de crosspred ou crossreduce e retorna o valor da temperatura correspondente.
+
+get_cen <- function(crosspred) {
+  # Precisamos deste if porque a saída de crosspred e crossreduce é ligeiramente diferente.
+  # Queremos que a função funcione para ambos os casos.
+  if(!is.null(crosspred$fit)) {
+    # Para crosspred: retorna a temperatura com o menor risco relativo
+    crosspred$predvar[which.min(crosspred$fit)]
+  } else if(!is.null(crosspred$allfit)) {
+    # Para crossreduce: retorna a temperatura com o menor risco relativo
+    crosspred$predvar[which.min(crosspred$allfit)]
+  } else {
+    # Caso não seja possível localizar o mínimo
+    print("Não foi possível localizar o mínimo.")
+  }
+}
+
+
+# Neste exemplo, usamos 22.3 °C como temperatura de centralização.
+# Neste caso, não difere muito da mediana da série.
+# Em outros estudos, a temperatura de menor risco pode ser bem diferente da mediana.
+
+temp_media_mediana
+get_cen(red1)  # aqui obtemos a MMT estimada
+
+
+# Observação didática sobre o parâmetro "by":
+# O passo "by" na função crossreduce controla a precisão da curva e da MMT estimada.
+# Quanto menor o passo, mais precisa é a localização do mínimo.
+# Como exercício, você pode redefinir red1 usando by = 0.01 para a grade de temperaturas
+# e executar novamente get_cen(red1) para ver como muda a MMT.
+# Neste exemplo, a mudança é mínima porque a parte inferior da curva é plana.
+# Geralmente, usar by = 0.1 (0,1 °C) já é suficiente, dependendo da faixa de temperaturas observada.
+
+
+
+
+
+# Reexecutamos e plotamos o modelo usando a nova temperatura de centralização (MMT).
+# Não é estritamente necessário usar uma grade mais fina aqui,
+# a grade padrão já produz uma curva suave e adequada.
+
+red1 <- crossreduce(cb1,
+                    modelo1,
+                    at = seq(temp_media_min, temp_media_max, by = 0.1),
+                    cen = get_cen(red1)) 
+
+# Estimar MMT
+mmt <- get_cen(red1)
+
+# Variáveis
+temp <- red1$predvar
+rr <- red1$RRfit
+
+# Separar abaixo e acima da MMT
+below <- temp <= mmt
+above <- temp > mmt
+
+# Plot base do red1
+plot(red1, xlab = "Temperatura", ylab = "Risco Relativo (RR)",
+     main = "Curva Temperatura–Mortalidade",
+     xaxt = "n", yaxt = "n", ylim = c(0.8, 2.4))
+axis(1, at = seq(12, 32, by = 1))
+axis(2, at = seq(0.8, 2.4, by = 0.2))
+
+# Adicionar linhas coloridas
+lines(temp[below], rr[below], col = "#253C9C", lwd = 2)
+lines(temp[above], rr[above], col = "#D64933", lwd = 2)
+
+# Linha pontilhada na MMT
+abline(v = mmt, lty = 3)
+
+dev.copy(jpeg, filename = "curva_temp_mort_MMT.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
 
 
 
