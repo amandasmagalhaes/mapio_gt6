@@ -28,11 +28,13 @@ pacman::p_load(
   # Importação de dados
   "haven",
   # Manipulação de dados
-  "dplyr", "lubridate", "tidyr",
+  "dplyr", "tidyr", "lubridate", 
   # Visualização de dados
   "ggplot2",
-  # Modelagem estatística
-  "splines", "lme4", "glmmTMB"
+  # Correlação
+  "Hmisc", "reshape2",
+  # Modelagem
+  "splines"
 )
 
 
@@ -354,8 +356,81 @@ for(a in anos){
 }
 
 
+### Plot correlação ####
 
 
+# Preparar dados: remover colunas indesejadas e linhas com NAs, converter para numérico
+dta_clean <- sapply(na.omit(dta[, !names(dta) %in% c("data", "obitos_infantil")]), 
+                    as.numeric)
+
+# Calcular correlação de Spearman
+cor_res <- rcorr(dta_clean, type = "spearman")
+cor_matrix <- cor_res$r
+p_values <- cor_res$P
+
+# Criar matriz de texto com valores arredondados
+cor_text <- ifelse(!is.na(cor_matrix), 
+                   paste0(round(cor_matrix, 2), ifelse(p_values < 0.05, "*", "")), "")
+
+# Definir nomes das linhas/colunas
+colnames(cor_matrix) <- rownames(cor_matrix) <- colnames(dta_clean)
+
+# Mostrar apenas metade inferior
+cor_matrix[upper.tri(cor_matrix)] <- NA
+cor_df <- melt(cor_matrix)
+cor_df <- cor_df[!upper.tri(cor_matrix),]
+
+# Plot
+ggplot(cor_df, aes(x = Var1, y = Var2, fill = value, label = sprintf("%.2f", value))) +
+  geom_tile() +
+  geom_text(color = "black", size = 5) +
+  scale_fill_gradient2(low = "#253C9C", mid = "white", high = "#D64933",
+                       midpoint = 0, limits = c(-1, 1), na.value = "gray") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),
+        panel.grid = element_line(color = "gray95")) +
+  labs(x = "", y = "")
+
+ggsave("correlacao.jpg", width = 21, height = 12, units = "in", dpi = 300)
+
+
+
+
+
+## Modelos ####
+
+
+
+### 1. Modelo de Poisson condicional com termo DNLM para temperatura ####
+
+
+# Queremos analisar as associações entre temperatura e mortalidade. 
+# Cada linha corresponde a uma data. 
+# Também construímos uma variável de estrato para o modelo de Poisson condicional (CP). 
+# O estrato é definido por ano, mês e dia da semana.
+
+dta <- dta |> 
+  mutate(strata = paste(year(data),
+                        month(data),
+                        wday(data, label = TRUE), 
+                        sep = ":") |> factor())
+
+
+# Usamos splines naturais (cúbicas) para capturar as associações não lineares. 
+# Aqui, especificamos a localização dos nós no espaço do preditor 
+# (ou seja, os nós para a dimensão da temperatura).
+pred_knots <- quantile(dta$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
+
+# Ver os valores criados: eles estão em graus de temperatura.
+pred_knots 
+
+
+# Especificamos a localização dos nós no espaço de defasagens (lags) escolhendo 
+# o número de lags a incluir no modelo e o número de nós a incluir nesse espaço.
+# Isso é feito para que usemos menos de 21 coeficientes ao modelar as defasagens.
+n_lag <- 21
+lag_knots <- logknots(n_lag, nk = 3)
 
 
 
