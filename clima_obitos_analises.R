@@ -666,7 +666,7 @@ invisible(lapply(2:length(red_list),
                  function(i) lines(red_list[[i]], col = colors[i], lty = lty, lwd = 2)))
 
 # Legenda
-legend(x = 16.95, y = 0.93, legend = legend_text, 
+legend(x = 16.7, y = 0.975, legend = legend_text, 
        col = colors, lty = lty, lwd = 2, bty = "n", y.intersp = 0.2)
 
 # Salvar
