@@ -805,7 +805,7 @@ dev.off()
 
 
 
-### Temperatura e a mortalidade (percentis e absoluta) ####
+#### Temperatura e a mortalidade (percentis e absoluta) ####
 
 # Criar data.frame com os resultados da curva temperatura–mortalidade (crossreduce)
 df_red1 <- data.frame(temp = red1$predvar,
@@ -834,89 +834,64 @@ p_a <- ggplot(df_red1, aes(x = temp_percentile, y = rr)) +
   geom_line(color = "black", linewidth = 1) +
   vlines_perc + hline +
   scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
-  labs(title = "(a) Medida relativa de temperatura \n",
-       x = "Percentis de temperatura",
-       y = "Risco Relativo") +
+  labs(title = "Temperatura relativa (percentis) \n",
+       x = "",
+       y = "Risco Relativo (escala logarítmica) \n") +
   theme_minimal(base_size = 14)
 p_a
 
-
-
-
-
-# --- Gráfico (b): Associação com Temperatura Absoluta (°C) -------------------
+# Plot b: Associação com Temperatura Absoluta (°C)
 p_b <- ggplot(df_red1, aes(x = temp, y = rr)) +
-  geom_ribbon(aes(ymin = rr_low, ymax = rr_high), fill = "grey80", alpha = 0.8) + # IC95%
-  geom_line(color = "black", linewidth = 1) +  # curva principal
-  vlines +                                     # linhas verticais nos percentis
-  scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) + # eixo y em escala log
-  labs(
-    title = "(b) Absolute temperature measure (°C)",
-    x = "Temperature (°C)",
-    y = "RR"
-  ) +
-  theme_bw()
+  geom_ribbon(aes(ymin = rr_low, ymax = rr_high), fill = "grey80", alpha = 0.8) +
+  geom_line(color = "black", linewidth = 1) +
+  vlines + hline +
+  scale_x_continuous(breaks = seq(12, 31, by = 1), limits = c(12, 31)) +
+  scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
+  labs(title = "Temperatura absoluta (°C) \n",
+       x = "",
+       y = "") +
+  theme_minimal(base_size = 14)
+p_b
 
-
-
-
-
-# --- Gráfico (d): Distribuição da Temperatura Absoluta (°C) ------------------
-p_d <- ggplot(dta, aes(x = temp_media)) +
-  geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "grey60", color = "white") +
-  vlines +
-  labs(
-    title = "(d) Distribution of absolute temperatures (°C)",
-    x = "Temperature (°C)",
-    y = "Density"
-  ) +
-  theme_bw()
-
-
-# --- Gráfico (c): Distribuição da Temperatura Relativa (percentis) -----------
-# Adicionar coluna com percentil relativo (0–100) no dataset original
-dta$temp_percentile <- ecdf_fun(dta$temp_media) * 100
-
+# Plot c: Distribuição da Temperatura Relativa (percentis)
 p_c <- ggplot(dta, aes(x = temp_percentile)) +
   geom_histogram(aes(y = after_stat(density)), binwidth = 2, fill = "grey60", color = "white") +
   vlines_perc +
-  labs(
-    title = "(c) Distribution of temperature percentiles",
-    x = "Temperature percentile",
-    y = "Density"
-  ) +
-  theme_bw()
+  scale_y_continuous(breaks = seq(0.00, 0.15, by = 0.05), limits = c(0.00, 0.15)) +
+  labs(title = "Distribuição da temperatura (percentis) \n",
+       x = " \n Percentis de temperatura \n",
+       y = "Densidade \n") +
+  theme_minimal(base_size = 14)
+p_c
 
+# Plot d: Distribuição da Temperatura Absoluta (°C)
+p_d <- ggplot(dta, aes(x = temp_media)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "grey60", color = "white") +
+  vlines +
+  scale_x_continuous(breaks = seq(12, 31, by = 1), limits = c(12, 31)) +
+  labs(title = "Distribuição da temperatura (°C) \n",
+       x = "\n Temperatura (°C) \n",
+       y = "") +
+  theme_minimal(base_size = 14)
+p_d
 
-# --- Combinar os gráficos (patchwork) ---------------------------------------
+# Combinar os plots
 final_plot <- (p_a | p_b) / (p_c | p_d) +
   plot_annotation(
-    title = 'Supplementary Figure 1: Association between temperature conditions and homicide mortality',
-    caption = 'Dashed vertical lines indicate 1st, 25th, 50th, 75th, and 99th percentiles. Shading represents 95% CI. RR y axes are on the log scale.'
-  )
+    caption = 'As linhas verticais tracejadas indicam os percentis 1º, 25º, 50º, 75º e 99º.
+A área sombreada representa o intervalo de confiança de 95%.'
+  ) &
+  theme(plot.caption = element_text(hjust = 0),
+    plot.caption.position = "plot")
 
-# Mostrar o gráfico final
-print(final_plot)
+final_plot
 
-# Salvar em alta resolução (ajuste tamanho conforme necessidade)
-# ggsave("Supplementary_Figure_1.png", plot = final_plot, width = 12, height = 8, dpi = 300)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ggsave("temp_mort_log_density.png", 
+       plot = final_plot, 
+       width = 21, 
+       height = 12, 
+       units = "in", 
+       dpi = 300)
 
 
 
