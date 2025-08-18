@@ -30,7 +30,7 @@ pacman::p_load(
   # Manipulação de dados
   "dplyr", "tidyr", "lubridate", 
   # Visualização de dados
-  "ggplot2",
+  "ggplot2", "patchwork",
   # Correlação
   "Hmisc", "reshape2",
   # Modelagem
@@ -277,7 +277,7 @@ for(a in anos){
 
 dta$data <- as.Date(dta$data)  
 
-p2 <- ggplot(dta, aes(x = data, y = temp_media)) +
+p <- ggplot(dta, aes(x = data, y = temp_media)) +
   geom_point(color = "gray45", size = 1.5) +
   xlab("\n Anos") +
   ylab("Temperatura média (°C) \n") +
@@ -286,11 +286,10 @@ p2 <- ggplot(dta, aes(x = data, y = temp_media)) +
   scale_y_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) +
   theme_minimal(base_size = 14) +
   theme(axis.text.x = element_text(hjust = 1))
-
-p2
+p
 
 ggsave(filename = file.path("plots_temp", "temp_anos.jpg"),
-       plot = p2,
+       plot = p,
        width = 21, height = 12, units = "in", dpi = 300)
 
 
@@ -425,11 +424,11 @@ for(a in anos){
 
 
 # Preparar dados: remover colunas indesejadas e linhas com NAs, converter para numérico
-dta_clean <- sapply(na.omit(dta[, !names(dta) %in% c("data", "obitos_infantil")]), 
+dta_limpo <- sapply(na.omit(dta[, !names(dta) %in% c("data", "obitos_infantil")]), 
                     as.numeric)
 
 # Calcular correlação de Spearman
-cor_res <- rcorr(dta_clean, type = "spearman")
+cor_res <- rcorr(dta_limpo, type = "spearman")
 cor_matrix <- cor_res$r
 p_values <- cor_res$P
 
@@ -438,7 +437,7 @@ cor_text <- ifelse(!is.na(cor_matrix),
                    paste0(round(cor_matrix, 2), ifelse(p_values < 0.05, "*", "")), "")
 
 # Definir nomes das linhas/colunas
-colnames(cor_matrix) <- rownames(cor_matrix) <- colnames(dta_clean)
+colnames(cor_matrix) <- rownames(cor_matrix) <- colnames(dta_limpo)
 
 # Mostrar apenas metade inferior
 cor_matrix[upper.tri(cor_matrix)] <- NA
@@ -471,6 +470,7 @@ ggsave("correlacao.jpg", width = 21, height = 12, units = "in", dpi = 300)
 # DLNMs: Modelos não lineares de defasagem (lags) distribuída.
 # Objetivo: investigar a associação entre temperatura e mortalidade. 
 # Cada linha representa uma data.
+
 # Criamos uma variável de estrato (ano, mês e dia da semana) 
 # para controlar sazonalidade e variação semanal.
 
@@ -593,7 +593,7 @@ pred1 <- crosspred(cb1,
 plot(pred1, xlab = "Temperatura (°C)", 
      ylab = "Lag (dias)", 
      zlab = "Risco Relativo",
-     main = "Superfície de Associação Temperatura–Mortalidade")
+     main = "Superfície de associação temperatura–mortalidade")
 
 dev.copy(jpeg, filename = "superficie.jpg", width = 21, height = 12, units = "in", res = 300)
 dev.off()
@@ -611,13 +611,13 @@ red1 <- crossreduce(cb1,
 
 plot(red1, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
      main = "Curva cumulativa de associação entre temperatura e mortalidade \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.8, 2.4), lwd = 2)
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
 axis(1, at = seq(12, 32, by = 1))
-axis(2, at = seq(0.8, 2.4, by = 0.2))
+axis(2, at = seq(0.5, 3.0, by = 0.5))
 
 abline(v = temp_media_mediana, lty = 3, col = "black")
 
-legend(x = 27.9, y = 1.1, 
+legend(x = 27.8, y = 0.9, 
        legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
        lty = 3, col = "black", bty = "n")
 
@@ -630,44 +630,44 @@ dev.off()
 
 # Percentis de interesse
 percentis <- c(0.05, 0.10, 0.75, 0.90, 0.95)
-temps <- quantile(temp_media, probs = percentis, na.rm = TRUE)
+percentis_temp <- quantile(temp_media, probs = percentis, na.rm = TRUE)
 
 # Criar lista com curvas lag-resposta
-red_list <- lapply(temps, function(t) crossreduce(
+red_list <- lapply(percentis_temp, function(t) crossreduce(
   cb1, modelo1, type = "var", cen = temp_media_mediana, value = t))
 
 # Nomes das curvas
-percent_labels <- c("5º Percentil", "10º Percentil", "75º Percentil", "90º Percentil", "95º Percentil")
-legend_text <- paste0(percent_labels, ": ", round(temps, 1), "°C")
+percentis_labels <- c("5º Percentil", "10º Percentil", "75º Percentil", "90º Percentil", "95º Percentil")
+legend_text <- paste0(percentis_labels, ": ", round(percentis_temp, 1), "°C")
 
 # Cores e estilo
-colors <- c("#1B9E77FF", "#D95F02FF", "#7570B3FF", "#E7298AFF", "#E6AB02FF")
+cores <- c("#1B9E77FF", "#D95F02FF", "#7570B3FF", "#E7298AFF", "#E6AB02FF")
 lty <- 1
 
 # Plot inicial
 plot(red_list[[1]],
      xlab = "Lag (dias)",
      ylab = "Risco Relativo",
-     main = paste0("Curvas lag-resposta para diferentes temperaturas, ref. ", 
-                   round(temp_media_mediana,1), "°C \n"),
-     ylim = c(0.95, 1.10),
-     col = colors[1],
+     main = paste0("Curvas lag-resposta para diferentes temperaturas (ref. ", 
+                   round(temp_media_mediana,1), "°C) \n"),
+     ylim = c(0.95, 1.20),
+     col = cores[1],
      lty = lty,
      lwd = 2,
      yaxt = "n",
      xaxt = "n",
      ci = "n")
 
-axis(2, at = seq(0.95, 1.10, by = 0.05))
-axis(1, at = seq(0, 21, by = 3))
+axis(2, at = seq(0.95, 1.20, by = 0.05))
+axis(1, at = seq(0, 21, by = 1))
 
 # Adicionar demais curvas 
 invisible(lapply(2:length(red_list), 
-                 function(i) lines(red_list[[i]], col = colors[i], lty = lty, lwd = 2)))
+                 function(i) lines(red_list[[i]], col = cores[i], lty = lty, lwd = 2)))
 
 # Legenda
-legend(x = 16.7, y = 0.975, legend = legend_text, 
-       col = colors, lty = lty, lwd = 2, bty = "n", y.intersp = 0.2)
+legend(x = -0.55, y = 1.22, legend = legend_text, 
+       col = cores, lty = lty, lwd = 2, bty = "n", y.intersp = 0.2)
 
 # Salvar
 dev.copy(jpeg, filename = "temp_mort_lag.jpg", width = 21, height = 12, units = "in", res = 300)
@@ -678,33 +678,33 @@ dev.off()
 # Associação entre Temperatura e Mortalidade em Lags específicos
 
 # Lags e cores
-lags_para_plotar <- c(0, 1, 3, 5, 6, 15)
-cores_das_linhas <- c("#1B9E77FF", "#D95F02FF", "#7570B3FF", "#E7298AFF", "#E6AB02FF", "#66A61EFF")
+lags_plot <- c(0, 1, 3, 5, 6, 15)
+cores <- c("#1B9E77FF", "#D95F02FF", "#7570B3FF", "#E7298AFF", "#E6AB02FF", "#66A61EFF")
 
 # Criar plot vazio
-plot(NA, xlim = range(pred1$predvar), ylim = c(0.90, 1.40), 
-     xlab = "Temperatura (°C)", ylab = "Risco Relativo", 
-     main = paste0("Associação entre Temperatura e Mortalidade em Lags específicos \n"), 
-     xaxt = "n", yaxt = "n")
+plot(NA, xlim = range(pred1$predvar), ylim = c(0.95, 1.20), 
+     xlab = "Temperatura (°C)", 
+     ylab = "Risco Relativo", 
+     main = paste0("Associação entre temperatura e mortalidade em lags específicos \n"), 
+     xaxt = "n", yaxt = "n",
+     bty = "l")
 
-# Adicionar ticks nos eixos
-axis(1, at = seq(floor(min(pred1$predvar)), ceiling(max(pred1$predvar)), by = 1), lwd = 0)
-axis(2, at = seq(0.9, 1.4, by = 0.1), lwd = 0)
+axis(2, at = seq(0.95, 1.20, by = 0.05), labels = TRUE, tck = -0.01)
+axis(1, at = seq(12, 32, by = 1), labels = TRUE, tck = -0.01)
 
-# Linha de referência
 abline(h = 1, lty = 1, col = "black")
 
 # Adicionar curvas para cada lag
-invisible(lapply(seq_along(lags_para_plotar), function(i){
-  lag_atual <- lags_para_plotar[i]
+invisible(lapply(seq_along(lags_plot), function(i){
+  lag_atual <- lags_plot[i]
   lines(pred1$predvar, pred1$matRRfit[, lag_atual + 1],
-        col = cores_das_linhas[i], lwd = 2, lty = 1)
+        col = cores[i], lwd = 2, lty = 1)
 }))
 
-# Legenda (pode ajustar a posição)
-legend(x = 11.5, y = 1.44,
-       legend = paste0("Lag ", lags_para_plotar, " dias"),
-       col = cores_das_linhas, lty = 1, lwd = 2, bty = "n", y.intersp = 0.2)
+# Legenda
+legend(x = 11.5, y = 1.22,
+       legend = paste0("Lag ", lags_plot, " dias"),
+       col = cores, lty = 1, lwd = 2, bty = "n", y.intersp = 0.2)
 
 # Salvar
 dev.copy(jpeg, filename = "temp_mort_lag_especificos.jpg", width = 21, height = 12, units = "in", res = 300)
@@ -787,21 +787,136 @@ acima <- temp >= mmt
 # Plot
 plot(red1, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
      main = "Curva cumulativa de associação entre temperatura e mortalidade \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.8, 2.4), lwd = 2)
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
 axis(1, at = seq(12, 32, by = 1))
-axis(2, at = seq(0.8, 2.4, by = 0.2))
+axis(2, at = seq(0.5, 3.0, by = 0.5))
 
 lines(temp[acima], rr[acima], col = "#D64933", lwd = 2)
 lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
 
 abline(v = mmt, lty = 3)
 
-legend(x = 25.8, y = 1.1,
+legend(x = 25.7, y = 0.9,
        legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
        lty = 3, col = "black", bty = "n", cex = 1)
 
 dev.copy(jpeg, filename = "curva_temp_mort_MMT.jpg", width = 21, height = 12, units = "in", res = 300)
 dev.off()
+
+
+
+### Temperatura e a mortalidade (percentis e absoluta) ####
+
+# Criar data.frame com os resultados da curva temperatura–mortalidade (crossreduce)
+df_red1 <- data.frame(temp = red1$predvar,
+                      rr = red1$RRfit,
+                      rr_low = red1$RRlow,
+                      rr_high = red1$RRhigh)
+
+# Função de distribuição empírica (ECDF) para converter temperaturas em percentis
+ecdf_fun <- ecdf(dta$temp_media)
+
+# Adicionar coluna de percentis (0–100) no df_red1
+df_red1$temp_percentile <- ecdf_fun(df_red1$temp) * 100
+
+# Calcular os valores absolutos de temperatura nos percentis de interesse
+percentis_v2 <- c(0.01, 0.25, 0.50, 0.75, 0.99)
+percentis_temp_v2 <- quantile(dta$temp_media, percentis_v2, na.rm = TRUE)
+
+# Linhas de referência
+vlines <- geom_vline(xintercept = percentis_temp_v2, linetype = "dashed", color = "grey40")
+vlines_perc <- geom_vline(xintercept = percentis_v2 * 100, linetype = "dashed", color = "grey40")
+hline <- geom_hline(yintercept = 1, linetype = "solid", color = "black")
+
+# Plot a: Associação com Temperatura Relativa (percentis)
+p_a <- ggplot(df_red1, aes(x = temp_percentile, y = rr)) +
+  geom_ribbon(aes(ymin = rr_low, ymax = rr_high), fill = "grey80", alpha = 0.8) +
+  geom_line(color = "black", linewidth = 1) +
+  vlines_perc + hline +
+  scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
+  labs(title = "(a) Medida relativa de temperatura \n",
+       x = "Percentis de temperatura",
+       y = "Risco Relativo") +
+  theme_minimal(base_size = 14)
+p_a
+
+
+
+
+
+# --- Gráfico (b): Associação com Temperatura Absoluta (°C) -------------------
+p_b <- ggplot(df_red1, aes(x = temp, y = rr)) +
+  geom_ribbon(aes(ymin = rr_low, ymax = rr_high), fill = "grey80", alpha = 0.8) + # IC95%
+  geom_line(color = "black", linewidth = 1) +  # curva principal
+  vlines +                                     # linhas verticais nos percentis
+  scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) + # eixo y em escala log
+  labs(
+    title = "(b) Absolute temperature measure (°C)",
+    x = "Temperature (°C)",
+    y = "RR"
+  ) +
+  theme_bw()
+
+
+
+
+
+# --- Gráfico (d): Distribuição da Temperatura Absoluta (°C) ------------------
+p_d <- ggplot(dta, aes(x = temp_media)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "grey60", color = "white") +
+  vlines +
+  labs(
+    title = "(d) Distribution of absolute temperatures (°C)",
+    x = "Temperature (°C)",
+    y = "Density"
+  ) +
+  theme_bw()
+
+
+# --- Gráfico (c): Distribuição da Temperatura Relativa (percentis) -----------
+# Adicionar coluna com percentil relativo (0–100) no dataset original
+dta$temp_percentile <- ecdf_fun(dta$temp_media) * 100
+
+p_c <- ggplot(dta, aes(x = temp_percentile)) +
+  geom_histogram(aes(y = after_stat(density)), binwidth = 2, fill = "grey60", color = "white") +
+  vlines_perc +
+  labs(
+    title = "(c) Distribution of temperature percentiles",
+    x = "Temperature percentile",
+    y = "Density"
+  ) +
+  theme_bw()
+
+
+# --- Combinar os gráficos (patchwork) ---------------------------------------
+final_plot <- (p_a | p_b) / (p_c | p_d) +
+  plot_annotation(
+    title = 'Supplementary Figure 1: Association between temperature conditions and homicide mortality',
+    caption = 'Dashed vertical lines indicate 1st, 25th, 50th, 75th, and 99th percentiles. Shading represents 95% CI. RR y axes are on the log scale.'
+  )
+
+# Mostrar o gráfico final
+print(final_plot)
+
+# Salvar em alta resolução (ajuste tamanho conforme necessidade)
+# ggsave("Supplementary_Figure_1.png", plot = final_plot, width = 12, height = 8, dpi = 300)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -902,7 +1017,7 @@ plot_col
 plot(red_int1_own_MMT, 
      xlab = "\nTemperatura (ºC)", 
      ylab = "Risco Relativo", 
-     main = "Curva Temperatura–Mortalidade",
+     main = "Curva temperatura–mortalidade",
      col = plot_col[1], 
      ci.arg = list(col = alpha(plot_col[1], 0.2)),
      xaxt = "n", yaxt = "n", lwd = 2)
@@ -930,7 +1045,7 @@ anova_result <- anova(modelo1, modelo_int1, test = "Chisq")
 p_value <- signif(anova_result$`Pr(>Chi)`[2], 3)  # valor p do segundo modelo comparado
 
 # Legenda MMTs
-legend(x = 27.6, y = 0.98,
+legend(x = 27.8, y = 0.97,
        legend = c(paste0("MMT Fim de semana: ", mmt_int1, " ºC"),
                   paste0("MMT Dia de semana: ", mmt_int2, " ºC")),
        bty = "n",
@@ -938,7 +1053,7 @@ legend(x = 27.6, y = 0.98,
        y.intersp = 0.2)
 
 # Legenda do teste de comparação
-legend(x = 27.45, y = 0.95,
+legend(x = 27.65, y = 0.95,
        legend = paste0("Teste interação (Chi2): p = ", p_value),
        bty = "n", cex = 1)
 
