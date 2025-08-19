@@ -148,48 +148,44 @@ summary(dta$temp_max_mes_mais5C)
 
 summary(dta$obitos_feminino)
 
-tab <- table(dta$obitos_feminino)
-data.frame(`Óbitos` = as.numeric(names(tab)),
-           Freq = as.vector(tab),
-           Percent = round(100 * as.vector(tab) / sum(tab), 1))
-
 
 # Óbitos em homens
 
 summary(dta$obitos_masculino)
-
-tab <- table(dta$obitos_masculino)
-data.frame(`Óbitos` = as.numeric(names(tab)),
-           Freq = as.vector(tab),
-           Percent = round(100 * as.vector(tab) / sum(tab), 1))
 
 
 # Óbitos infantis
 
 summary(dta$obitos_infantil)
 
-tab <- table(dta$obitos_infantil)
-data.frame(`Óbitos` = as.numeric(names(tab)),
-           Freq = as.vector(tab),
-           Percent = round(100 * as.vector(tab) / sum(tab), 1))
-
 
 # Óbitos totais
 
 summary(dta$obitos_total)
 
-tab <- table(dta$obitos_total)
-data.frame(`Óbitos` = as.numeric(names(tab)),
-           Freq = as.vector(tab),
-           Percent = round(100 * as.vector(tab) / sum(tab), 1))
+dta <- dta %>%
+  mutate(ano = year(data),
+         grupo_anos = case_when(ano >= 2014 & ano <= 2019 ~ "2014-2019",
+                                ano >= 2020 & ano <= 2022 ~ "2020-2022",
+                                ano >= 2023 & ano <= 2024 ~ "2023-2024",
+                                TRUE ~ NA_character_))
+
+dta %>%
+  filter(!is.na(grupo_anos)) %>%
+  group_by(grupo_anos) %>%
+  summarise(total_obitos = sum(obitos_total, na.rm = TRUE), .groups = "drop") %>%
+  mutate(percent = round(100 * total_obitos / sum(total_obitos), 1))
 
 
 
 ### Plot temperatura média ####
 
+
+# Plot 1
+
 p <- ggplot(dta, aes(x = temp_media)) +
   geom_histogram(bins = 20, fill = "gray45", color = "white") +
-  xlab("\nTemperatura média (°C)") +
+  xlab("\n Temperatura média (°C)") +
   ylab("Frequência \n") +
   ggtitle("") +
   scale_y_continuous(breaks = seq(0, 600, by = 100), limits = c(0, 600)) +
@@ -201,6 +197,21 @@ ggsave(filename = file.path("plots_temp", "temp_media.jpg"),
        width = 21, height = 12, units = "in", dpi = 300)
 
 
+# Plot 2
+
+p <- ggplot(dta, aes(x = temp_media)) +
+  geom_histogram(bins = 20, fill = "gray45", color = "white") +
+  xlab("\n Temperatura média (°C)") +
+  ylab("Frequência \n") +
+  scale_y_continuous(breaks = seq(0, 400, by = 100), limits = c(0, 400)) +
+  facet_wrap(~ grupo_anos, ncol = 1) +
+  theme_minimal(base_size = 14)
+
+p
+
+ggsave(filename = file.path("plots_temp", "temp_media_anos.jpg"),
+       plot = p,
+       width = 21, height = 12, units = "in", dpi = 300)
 
 
 
@@ -230,6 +241,7 @@ ggplot(dta_long, aes(x = tipo, y = temperatura, fill = tipo)) +
 
 ggsave(filename = file.path("plots_temp", "temp.jpg"),
        width = 21, height = 12, units = "in", dpi = 300)
+
 
 
 ### Plots temperaturas diárias por ano ####
@@ -275,6 +287,36 @@ for(a in anos){
 
 # Plot 2
 
+dir.create("plots_temp", showWarnings = FALSE)
+
+dta_long <- dta %>%
+  select(grupo_anos, temp_min, temp_media, temp_max) %>%
+  pivot_longer(cols = c(temp_min, temp_media, temp_max),
+               names_to = "tipo",
+               values_to = "temperatura") %>%
+  mutate(tipo = factor(tipo, levels = c("temp_min", "temp_media", "temp_max"),
+                       labels = c("Mínima", "Média", "Máxima")))
+
+ggplot(dta_long, aes(x = tipo, y = temperatura, fill = tipo)) +
+  geom_boxplot(color = "black") +
+  scale_fill_manual(values = c("Mínima" = "#253C9C", 
+                               "Média" = "#35b779",
+                               "Máxima" = "#D64933")) +
+  facet_wrap(~ grupo_anos) +
+  scale_y_continuous(name = "Temperatura (°C) diária \n", 
+                     breaks = seq(0, 40, by = 5), 
+                     limits = c(0, 40)) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none") +
+  labs(x = "", y = "Temperatura (°C)")
+
+# Salvar o plot
+ggsave(filename = file.path("plots_temp", "temp_box.jpg"),
+       width = 21, height = 12, units = "in", dpi = 300)
+
+
+# Plot 3
+
 dta$data <- as.Date(dta$data)  
 
 p <- ggplot(dta, aes(x = data, y = temp_media)) +
@@ -285,12 +327,13 @@ p <- ggplot(dta, aes(x = data, y = temp_media)) +
   scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
   scale_y_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) +
   theme_minimal(base_size = 14) +
-  theme(axis.text.x = element_text(hjust = 1))
+  theme(axis.text.x = element_text(hjust = 0.5))
 p
 
 ggsave(filename = file.path("plots_temp", "temp_anos.jpg"),
        plot = p,
        width = 21, height = 12, units = "in", dpi = 300)
+
 
 
 ### Plots temperaturas e precipitação diárias por ano ####
@@ -320,7 +363,7 @@ for(a in anos){
              aes(x = data, y = precipitacao_total / escala_prec, fill = "Precipitação"), 
              alpha = 1) +
     geom_line(data = dta_ano, aes(x = data, y = temperatura, color = tipo), 
-              size = 1, alpha = 0.4) +
+              linewidth = 1, alpha = 0.4) +
     scale_color_manual(values = c("Mínima" = "#253C9C", 
                                   "Média" = "#35b779",
                                   "Máxima" = "#D64933"),
@@ -346,18 +389,18 @@ for(a in anos){
 }
 
 
+
 ### Plots óbitos por ano ####
 
-p <- ggplot(dta, aes(x = data, y = obitos_total)) +
-  geom_point(color = "gray45", size = 1.5) +
-  xlab("\n Anos") +
-  ylab("Óbitos totais \n") +
-  ggtitle("") +
-  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
-  scale_y_continuous(breaks = seq(0, 150, by = 50), limits = c(0, 150)) +
-  theme_minimal(base_size = 14) +
-  theme(axis.text.x = element_text(hjust = 1))
 
+# Plot 1
+p <- ggplot(dta, aes(x = data, y = obitos_total)) + 
+  geom_point(color = "gray45", size = 1.5) + xlab("\n Anos") + 
+  ylab("Óbitos totais \n") + ggtitle("") + 
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") + 
+  scale_y_continuous(breaks = seq(0, 150, by = 50), limits = c(0, 150)) + 
+  theme_minimal(base_size = 14) + 
+  theme(axis.text.x = element_text(hjust = 1))
 p
 
 ggsave(filename = file.path("plots_temp_obit", "obitos_anos.jpg"),
@@ -365,7 +408,31 @@ ggsave(filename = file.path("plots_temp_obit", "obitos_anos.jpg"),
        width = 21, height = 12, units = "in", dpi = 300)
 
 
+# Plot 2
+
+p <- ggplot(dta, aes(x = grupo_anos, y = obitos_total, fill = grupo_anos)) +
+  geom_boxplot(color = "black") +
+  scale_fill_manual(values = c("2014-2019" = "gray60", 
+                               "2020-2022" = "gray75", 
+                               "2023-2024" = "gray90")) +
+  scale_y_continuous(name = "Óbitos totais \n", 
+                     breaks = seq(0, 150, by = 25), 
+                     limits = c(0, 150)) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none") +
+  labs(x = "", y = "Óbitos totais")
+p
+
+ggsave(filename = file.path("plots_temp_obit", "obitos_box.jpg"),
+       plot = p,
+       width = 21, height = 12, units = "in", dpi = 300)
+
+
+
 ### Plots temperaturas e óbitos diários por ano ####
+
+
+# Plot 1
 
 dir.create("plots_temp_obit", showWarnings = FALSE)
 
@@ -376,9 +443,7 @@ dta_long <- dta %>%
                values_to = "temperatura") %>%
   mutate(tipo = factor(tipo, 
                        levels = c("temp_min", "temp_media", "temp_max"),
-                       labels = c("Temperatura mínima", 
-                                  "Temperatura média", 
-                                  "Temperatura máxima")),
+                       labels = c("Mínima", "Média", "Máxima")),
          ano = year(data))
 
 anos <- unique(dta_long$ano)
@@ -386,32 +451,32 @@ anos <- unique(dta_long$ano)
 for(a in anos){
   
   dta_ano <- dta_long %>% filter(ano == a)
-  
+
   escala_obitos <- 200 / 40
   
-  dta_ano <- dta_ano %>% mutate(obitos_escala = obitos_total / escala_obitos)
-  
   p <- ggplot() +
-    geom_smooth(data = dta_ano, aes(x = data, y = obitos_escala, color = "Óbitos totais"), 
-                method = "loess", se = FALSE, span = 0.2, size = 1) +
-    geom_smooth(data = dta_ano, aes(x = data, y = temperatura, color = tipo), 
-                method = "loess", se = FALSE, span = 0.2, size = 1, alpha = 0.4) +
-    scale_color_manual(values = c("Temperatura mínima" = "#253C9C", 
-                                  "Temperatura média" = "#35b779",
-                                  "Temperatura máxima" = "#D64933",
-                                  "Óbitos totais" = "grey20"),
-                       name = "Temperatura e óbitos suavizados (Loess)") +
+    geom_col(data = dta_ano %>% distinct(data, obitos_total), 
+             aes(x = data, y = obitos_total / escala_obitos, fill = "Óbitos totais"), 
+             alpha = 1) +
+    geom_line(data = dta_ano, aes(x = data, y = temperatura, color = tipo), 
+              size = 1, alpha = 0.4) +
+    scale_color_manual(values = c("Mínima" = "#253C9C", 
+                                  "Média" = "#35b779",
+                                  "Máxima" = "#D64933"),
+                       name = "Temperatura (°C)") +
+    scale_fill_manual(values = c("Óbitos totais" = "grey20"),
+                      name = "Óbitos") +
     scale_y_continuous(name = "Temperatura (°C) diária \n", 
                        breaks = seq(0, 40, 5), limits = c(0, 40),
                        sec.axis = sec_axis(~ . * escala_obitos, 
-                                           name = "\n Óbitos diários\n",
+                                           name = "\n Óbitos diários \n",
                                            breaks = seq(0, 200, 20))) +
     scale_x_date(date_breaks = "1 month", date_labels = "%m/%y") +
     theme_minimal(base_size = 14) +
     labs(x = "\n Data", y = "Temperatura (°C) \n") +
     theme(legend.position = "right")
   
-  ggsave(filename = file.path("plots_temp_obit",
+  ggsave(filename = file.path("plots_temp_obit", 
                               paste0("temp_obit_", a, ".jpg")),
          plot = p,
          width = 21, height = 12, units = "in", dpi = 300)
@@ -420,11 +485,43 @@ for(a in anos){
 }
 
 
+# Plot 2
+
+p1 <- ggplot(dta, aes(x = data, y = obitos_total)) +
+  geom_point(color = "gray45", size = 1.5) +
+  xlab("") +
+  ylab("Óbitos totais \n") +
+  ggtitle("") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  scale_y_continuous(breaks = seq(0, 150, by = 50), limits = c(0, 150)) +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(hjust = 0.5))
+
+p2 <- ggplot(dta, aes(x = data, y = temp_media)) +
+  geom_point(color = "gray45", size = 1.5) +
+  xlab("\n Anos") +
+  ylab("Temperatura média (°C) \n") +
+  ggtitle("") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  scale_y_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(hjust = 0.5))
+
+p_final <- p1 / p2
+
+p_final
+
+ggsave(filename = file.path("plots_temp_obit", "temp_obit_anos.jpg"),
+       plot = p_final,
+       width = 21, height = 12, units = "in", dpi = 300)
+
+
 ### Plot correlação ####
 
 
 # Preparar dados: remover colunas indesejadas e linhas com NAs, converter para numérico
-dta_limpo <- sapply(na.omit(dta[, !names(dta) %in% c("data", "obitos_infantil")]), 
+dta_limpo <- sapply(na.omit(dta[, !names(dta) %in% c(
+  "data", "obitos_infantil", "grupo_anos")]), 
                     as.numeric)
 
 # Calcular correlação de Spearman
@@ -617,7 +714,7 @@ axis(2, at = seq(0.5, 3.0, by = 0.5))
 
 abline(v = temp_media_mediana, lty = 3, col = "black")
 
-legend(x = 27.8, y = 0.9, 
+legend("bottomright", inset = c(-0.2, 0), 
        legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
        lty = 3, col = "black", bty = "n")
 
@@ -666,8 +763,9 @@ invisible(lapply(2:length(red_list),
                  function(i) lines(red_list[[i]], col = cores[i], lty = lty, lwd = 2)))
 
 # Legenda
-legend(x = -0.55, y = 1.22, legend = legend_text, 
-       col = cores, lty = lty, lwd = 2, bty = "n", y.intersp = 0.2)
+legend("topright", inset = c(0.555, 0),
+       legend = legend_text,
+       col = cores, lty = lty, lwd = 2, bty = "n", y.intersp = 0.5)
 
 # Salvar
 dev.copy(jpeg, filename = "temp_mort_lag.jpg", width = 21, height = 12, units = "in", res = 300)
@@ -675,7 +773,7 @@ dev.off()
 
 
 
-# Associação entre Temperatura e Mortalidade em Lags específicos
+# Associação entre temperatura e mortalidade em lags específicos
 
 # Lags e cores
 lags_plot <- c(0, 1, 3, 5, 6, 15)
@@ -702,9 +800,9 @@ invisible(lapply(seq_along(lags_plot), function(i){
 }))
 
 # Legenda
-legend(x = 11.5, y = 1.22,
+legend("topright", inset = c(0.69, 0),
        legend = paste0("Lag ", lags_plot, " dias"),
-       col = cores, lty = 1, lwd = 2, bty = "n", y.intersp = 0.2)
+       col = cores, lty = 1, lwd = 2, bty = "n", y.intersp = 0.5)
 
 # Salvar
 dev.copy(jpeg, filename = "temp_mort_lag_especificos.jpg", width = 21, height = 12, units = "in", res = 300)
@@ -796,7 +894,7 @@ lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
 
 abline(v = mmt, lty = 3)
 
-legend(x = 25.7, y = 0.9,
+legend("bottomright", inset = c(-0.496, 0),
        legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
        lty = 3, col = "black", bty = "n", cex = 1)
 
@@ -817,7 +915,8 @@ df_red1 <- data.frame(temp = red1$predvar,
 ecdf_fun <- ecdf(dta$temp_media)
 
 # Adicionar coluna de percentis (0–100) no df_red1
-df_red1$temp_percentile <- ecdf_fun(df_red1$temp) * 100
+df_red1$temp_percentil <- ecdf_fun(df_red1$temp) * 100
+dta$temp_percentil <- ecdf(dta$temp_media)(dta$temp_media) * 100
 
 # Calcular os valores absolutos de temperatura nos percentis de interesse
 percentis_v2 <- c(0.01, 0.25, 0.50, 0.75, 0.99)
@@ -829,7 +928,7 @@ vlines_perc <- geom_vline(xintercept = percentis_v2 * 100, linetype = "dashed", 
 hline <- geom_hline(yintercept = 1, linetype = "solid", color = "black")
 
 # Plot a: Associação com Temperatura Relativa (percentis)
-p_a <- ggplot(df_red1, aes(x = temp_percentile, y = rr)) +
+p_a <- ggplot(df_red1, aes(x = temp_percentil, y = rr)) +
   geom_ribbon(aes(ymin = rr_low, ymax = rr_high), fill = "grey80", alpha = 0.8) +
   geom_line(color = "black", linewidth = 1) +
   vlines_perc + hline +
@@ -854,7 +953,7 @@ p_b <- ggplot(df_red1, aes(x = temp, y = rr)) +
 p_b
 
 # Plot c: Distribuição da Temperatura Relativa (percentis)
-p_c <- ggplot(dta, aes(x = temp_percentile)) +
+p_c <- ggplot(dta, aes(x = temp_percentil)) +
   geom_histogram(aes(y = after_stat(density)), binwidth = 2, fill = "grey60", color = "white") +
   vlines_perc +
   scale_y_continuous(breaks = seq(0.00, 0.15, by = 0.05), limits = c(0.00, 0.15)) +
@@ -881,7 +980,7 @@ final_plot <- (p_a | p_b) / (p_c | p_d) +
     caption = 'As linhas verticais tracejadas indicam os percentis 1º, 25º, 50º, 75º e 99º.
 A área sombreada representa o intervalo de confiança de 95%.'
   ) &
-  theme(plot.caption = element_text(hjust = 0),
+  theme(plot.caption = element_text(hjust = 0, size = 14),
     plot.caption.position = "plot")
 
 final_plot
@@ -1002,14 +1101,14 @@ axis(2, at = seq(0.5, 3.0, by = 0.5))
 lines(red_int2_own_MMT, ci = "area", col = plot_col[3], 
       ci.arg = list(col = alpha(plot_col[3], 0.2), lwd = 2))
 
-legend(x = 11.3, y = 3.05,
+legend("topright", inset = c(0.6, 0),
        legend = c("Fim de semana", "Dia de semana"),
        col = c(plot_col[1], plot_col[3]), 
        lty = 1, 
        lwd = 2,
        bty = "n",
        cex = 1.1,
-       y.intersp = 0.2)
+       y.intersp = 0.5)
 
 # Valores das MMTs
 mmt_int1 <- round(get_cen(red_int1), 1)  # MMT fim de semana
@@ -1020,15 +1119,15 @@ anova_result <- anova(modelo1, modelo_int1, test = "Chisq")
 p_value <- signif(anova_result$`Pr(>Chi)`[2], 3)  # valor p do segundo modelo comparado
 
 # Legenda MMTs
-legend(x = 27.8, y = 0.97,
+legend("bottomright", inset = c(-0.335, 0.06),
        legend = c(paste0("MMT Fim de semana: ", mmt_int1, " ºC"),
                   paste0("MMT Dia de semana: ", mmt_int2, " ºC")),
        bty = "n",
        cex = 1,
-       y.intersp = 0.2)
+       y.intersp = 0.5)
 
 # Legenda do teste de comparação
-legend(x = 27.65, y = 0.95,
+legend("bottomright", inset = c(-0.355, 0.0),
        legend = paste0("Teste interação (Chi2): p = ", p_value),
        bty = "n", cex = 1)
 
@@ -1037,4 +1136,379 @@ dev.off()
 
 
 
+
+
+### 2014-2019 ####
+
+
+# Filtrar os dados
+dta_14_19 <- dta |> filter(lubridate::year(data) %in% 2014:2019)
+
+dta_14_19 <- dta_14_19 %>%
+  select(-ano, -grupo_anos, -strata, -temp_percentil, -fim_semana, -dia_semana)
+
+
+# Outliers
+
+# Calcular média e desvio padrão
+media <- mean(dta_14_19$temp_media, na.rm = TRUE)
+sd <- sd(dta_14_19$temp_media, na.rm = TRUE)
+
+# Intervalo
+limite_inferior <- media - 2.4*sd
+limite_superior <- media + 2.4*sd
+
+# Número de linhas antes
+n_antes <- nrow(dta_14_19)
+
+# Filtrar sobrescrevendo
+dta_14_19 <- dta_14_19 %>%
+  filter(temp_media >= limite_inferior,
+         temp_media <= limite_superior)
+
+# Número de linhas depois
+n_depois <- nrow(dta_14_19)
+
+# Quantos foram eliminados
+n_eliminados <- n_antes - n_depois
+n_eliminados
+
+
+# Strata
+dta_14_19 <- dta_14_19 |> 
+  mutate(strata = paste(year(data),
+                        month(data),
+                        wday(data, label = TRUE), 
+                        sep = ":") |> factor())
+
+#View(dta_14_19)
+
+
+# Nós dos splines de temperatura
+pred_knots_14_19 <- quantile(dta_14_19$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
+pred_knots_14_19
+
+
+# Matriz 'cross-basis' que combina o efeito não linear da temperatura e dos lags
+cb_14_19 <- crossbasis(dta_14_19$temp_media,
+                       lag = n_lag,
+                       argvar = list(fun = "ns", knots = pred_knots_14_19),
+                       arglag = list(fun = "ns", knots = lag_knots))
+
+
+# Modelo DLNM condicional (gnm) para o período
+modelo_14_19 <- gnm(obitos_total ~ cb_14_19,
+                    eliminate = strata,
+                    family = quasipoisson(),
+                    data = dta_14_19)
+
+
+# Valores extremos e central da temperatura média
+
+# Temperatura média mínima
+temp_media_min <- min(dta_14_19$temp_media)
+temp_media_min
+
+# Mediana da temperatura média
+temp_media_mediana <- median(dta_14_19$temp_media)
+temp_media_mediana
+
+# Temperatura média máxima
+temp_media_max <- max(dta_14_19$temp_media)
+temp_media_max
+
+
+# Redução da superfície temperatura–lag–mortalidade apenas para a dimensão da temperatura.
+red_14_19 <- crossreduce(cb_14_19,
+                         modelo_14_19,
+                         at = seq(temp_media_min, temp_media_max, by = 0.1),
+                         cen = temp_media_mediana)
+
+plot(red_14_19, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
+     main = "Curva cumulativa de associação entre temperatura e mortalidade (2014-2019) \n",
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
+axis(1, at = seq(12, 32, by = 1))
+axis(2, at = seq(0.5, 4.5, by = 0.5))
+
+abline(v = temp_media_mediana, lty = 3, col = "black")
+
+legend("bottomright", inset = c(-0.2, 0), 
+       legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
+       lty = 3, col = "black", bty = "n")
+
+dev.copy(jpeg, filename = "curva_temp_mort_2014_2019.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
+
+
+# Reexecutamos e plotamos o modelo usando a nova temperatura de centralização (MMT).
+
+red_14_19 <- crossreduce(cb_14_19,
+                         modelo_14_19,
+                         at = seq(temp_media_min, temp_media_max, by = 0.1),
+                         cen = get_cen(red_14_19))
+
+# Estimar MMT
+mmt <- get_cen(red_14_19)
+mmt
+
+# Variáveis
+temp <- red_14_19$predvar
+rr <- red_14_19$RRfit
+
+# Separar abaixo e acima da MMT
+abaixo <- temp <= mmt
+acima <- temp >= mmt
+
+# Plot
+plot(red_14_19, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
+     main = "Curva cumulativa de associação entre temperatura e mortalidade (2014-2019) \n",
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
+axis(1, at = seq(12, 32, by = 1))
+axis(2, at = seq(0.5, 4.5, by = 0.5))
+
+lines(temp[acima], rr[acima], col = "#D64933", lwd = 2)
+lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
+
+abline(v = mmt, lty = 3)
+
+legend("bottomright", inset = c(-0.496, 0),
+       legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
+       lty = 3, col = "black", bty = "n", cex = 1)
+
+dev.copy(jpeg, filename = "curva_temp_mort_MMT_2014_2019.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
+
+
+
+
+
+### 2020-2022 ####
+
+
+# Filtrar os dados
+dta_20_22 <- dta |> filter(lubridate::year(data) %in% 2020:2022)
+
+dta_20_22 <- dta_20_22 %>%
+  select(-ano, -grupo_anos, -strata, -temp_percentil, -fim_semana, -dia_semana)
+
+
+# Strata
+dta_20_22 <- dta_20_22 |> 
+  mutate(strata = paste(year(data),
+                        month(data),
+                        wday(data, label = TRUE), 
+                        sep = ":") |> factor())
+
+View(dta_20_22)
+
+
+# Nós dos splines de temperatura
+pred_knots_20_22 <- quantile(dta_20_22$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
+pred_knots_20_22
+
+
+# Matriz 'cross-basis' que combina o efeito não linear da temperatura e dos lags
+cb_20_22 <- crossbasis(dta_20_22$temp_media,
+                       lag = n_lag,
+                       argvar = list(fun = "ns", knots = pred_knots_20_22),
+                       arglag = list(fun = "ns", knots = lag_knots))
+
+
+# Modelo DLNM condicional (gnm) para o período
+modelo_20_22 <- gnm(obitos_total ~ cb_20_22,
+                    eliminate = strata,
+                    family = quasipoisson(),
+                    data = dta_20_22)
+
+
+# Valores extremos e central da temperatura média
+
+# Temperatura média mínima
+temp_media_min <- min(dta_20_22$temp_media)
+temp_media_min
+
+# Mediana da temperatura média
+temp_media_mediana <- median(dta_20_22$temp_media)
+temp_media_mediana
+
+# Temperatura média máxima
+temp_media_max <- max(dta_20_22$temp_media)
+temp_media_max
+
+
+# Redução da superfície temperatura–lag–mortalidade apenas para a dimensão da temperatura.
+red_20_22 <- crossreduce(cb_20_22,
+                         modelo_20_22,
+                         at = seq(temp_media_min, temp_media_max, by = 0.1),
+                         cen = temp_media_mediana)
+
+plot(red_20_22, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
+     main = "Curva cumulativa de associação entre temperatura e mortalidade (2020-2022) \n",
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
+axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
+axis(2, at = seq(0.5, 4.5, by = 0.5))
+
+abline(v = temp_media_mediana, lty = 3, col = "black")
+
+legend("bottomright", inset = c(-0.2, 0), 
+       legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
+       lty = 3, col = "black", bty = "n")
+
+dev.copy(jpeg, filename = "curva_temp_mort_2020_2022.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
+
+
+# Reexecutamos e plotamos o modelo usando a nova temperatura de centralização (MMT).
+
+red_20_22 <- crossreduce(cb_20_22,
+                         modelo_20_22,
+                         at = seq(temp_media_min, temp_media_max, by = 0.1),
+                         cen = get_cen(red_20_22))
+
+# Estimar MMT
+mmt <- get_cen(red_20_22)
+
+# Variáveis
+temp <- red_20_22$predvar
+rr <- red_20_22$RRfit
+
+# Separar abaixo e acima da MMT
+abaixo <- temp <= mmt
+acima <- temp >= mmt
+
+# Plot final
+plot(red_20_22, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
+     main = "Curva cumulativa de associação entre temperatura e mortalidade (2020-2022) \n",
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
+axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
+axis(2, at = seq(0.5, 4.5, by = 0.5))
+
+lines(temp[acima], rr[acima], col = "#D64933", lwd = 2)
+lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
+
+abline(v = mmt, lty = 3)
+
+legend("bottomright", inset = c(-0.496, 0),
+       legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
+       lty = 3, col = "black", bty = "n", cex = 1)
+
+dev.copy(jpeg, filename = "curva_temp_mort_MMT_2020_2022.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
+
+
+
+
+
+### 2023-2024 ####
+
+
+# Filtrar os dados
+dta_23_24 <- dta |> filter(lubridate::year(data) %in% 2023:2024)
+
+dta_23_24 <- dta_23_24 %>%
+  select(-ano, -grupo_anos, -strata, -temp_percentil, -fim_semana, -dia_semana)
+
+
+# Strata
+dta_23_24 <- dta_23_24 |> 
+  mutate(strata = paste(year(data),
+                        month(data),
+                        wday(data, label = TRUE), 
+                        sep = ":") |> factor())
+
+View(dta_23_24)
+
+
+# Nós dos splines de temperatura
+pred_knots_23_24 <- quantile(dta_23_24$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
+pred_knots_23_24
+
+
+# Matriz 'cross-basis' que combina o efeito não linear da temperatura e dos lags
+cb_23_24 <- crossbasis(dta_23_24$temp_media,
+                       lag = n_lag,
+                       argvar = list(fun = "ns", knots = pred_knots_23_24),
+                       arglag = list(fun = "ns", knots = lag_knots))
+
+
+# Modelo DLNM condicional (gnm) para o período
+modelo_23_24 <- gnm(obitos_total ~ cb_23_24,
+                    eliminate = strata,
+                    family = quasipoisson(),
+                    data = dta_23_24)
+
+
+# Valores extremos e central da temperatura média
+
+# Temperatura média mínima
+temp_media_min <- min(dta_23_24$temp_media)
+temp_media_min
+
+# Mediana da temperatura média
+temp_media_mediana <- median(dta_23_24$temp_media)
+temp_media_mediana
+
+# Temperatura média máxima
+temp_media_max <- max(dta_23_24$temp_media)
+temp_media_max
+
+
+# Redução da superfície temperatura–lag–mortalidade apenas para a dimensão da temperatura.
+red_23_24 <- crossreduce(cb_23_24,
+                         modelo_23_24,
+                         at = seq(temp_media_min, temp_media_max, by = 0.1),
+                         cen = temp_media_mediana)
+
+plot(red_23_24, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
+     main = "Curva cumulativa de associação entre temperatura e mortalidade (2023-2024) \n",
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
+axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
+axis(2, at = seq(0.5, 4.5, by = 0.5))
+
+abline(v = temp_media_mediana, lty = 3, col = "black")
+
+legend("bottomright", inset = c(-0.2, 0), 
+       legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
+       lty = 3, col = "black", bty = "n")
+
+dev.copy(jpeg, filename = "curva_temp_mort_2023_2024.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
+
+
+# Reexecutamos e plotamos o modelo usando a nova temperatura de centralização (MMT).
+
+red_23_24 <- crossreduce(cb_23_24,
+                         modelo_23_24,
+                         at = seq(temp_media_min, temp_media_max, by = 0.1),
+                         cen = get_cen(red_23_24))
+
+# Estimar MMT
+mmt <- get_cen(red_23_24)
+
+# Variáveis
+temp <- red_23_24$predvar
+rr <- red_23_24$RRfit
+
+# Separar abaixo e acima da MMT
+abaixo <- temp <= mmt
+acima <- temp >= mmt
+
+# Plot final
+plot(red_23_24, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
+     main = "Curva cumulativa de associação entre temperatura e mortalidade (2023-2024) \n",
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
+axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
+axis(2, at = seq(0.5, 4.5, by = 0.5))
+
+lines(temp[acima], rr[acima], col = "#D64933", lwd = 2)
+lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
+
+abline(v = mmt, lty = 3)
+
+legend("bottomright", inset = c(-0.496, 0),
+       legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
+       lty = 3, col = "black", bty = "n", cex = 1)
+
+dev.copy(jpeg, filename = "curva_temp_mort_MMT_2023_2024.jpg", width = 21, height = 12, units = "in", res = 300)
+dev.off()
 
