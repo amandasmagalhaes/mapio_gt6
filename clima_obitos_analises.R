@@ -716,14 +716,16 @@ lags <- list(
   # https://doi.org/10.1093/aje/kwv260
   lag_10 = c(1,10),
   # https://doi.org/10.1016/j.envres.2024.119347
-  lag_7 = c(1,7))
+  lag_7 = c(1,7),
+  #
+  lag_5 = c(1,5))
 
 lags
 
 
 
 #### knots para os splines de lags #####
-# logknots(): concentra mais nós nos primeiros dias de defasagem,
+# logknots(): concentra mais nós nos primeiros dias de lags,
 #             capturando efeitos imediatos da temperatura.
 # equalknots(): distribui os nós igualmente ao longo do período de lags,
 #               útil para modelar efeitos graduais sem priorizar os primeiros dias.
@@ -732,13 +734,15 @@ lags
 lags_knots_3 <- list(lag_21_knots_3 = logknots(lags$lag_21, nk = 3),
                      lag_14_knots_3 = logknots(lags$lag_14, nk = 3),
                      lag_10_knots_3 = logknots(lags$lag_10, nk = 3),
-                     lag_7_knots_3 = logknots(lags$lag_7,  nk = 3))
+                     lag_7_knots_3 = logknots(lags$lag_7,  nk = 3),
+                     lag_5_knots_3 = logknots(lags$lag_5, nk = 3))
 
 # Nós igualmente espaçados
 lags_knots_3_equal <- list(lag_21_knots_3_eq = equalknots(lags$lag_21, nk = 3),
                            lag_14_knots_3_eq = equalknots(lags$lag_14, nk = 3),
                            lag_10_knots_3_eq = equalknots(lags$lag_10, nk = 3),
-                           lag_7_knots_3_eq = equalknots(lags$lag_7,  nk = 3))
+                           lag_7_knots_3_eq = equalknots(lags$lag_7,  nk = 3),
+                           lag_5_knots_3_eq = equalknots(lags$lag_5, nk = 3))
 
 # Combinar listas de nós 
 lags_knots_list <- c(lags_knots_3, lags_knots_3_equal)
@@ -761,7 +765,8 @@ df_knots <- bind_rows(lapply(names(lags_knots_list), function(knots_name) {
 
 # Criar dataframe dos lags
 df_lags <- bind_rows(lapply(names(lags), function(lag_name) {
-  data.frame(lag = lags[[lag_name]],
+  intervalo <- lags[[lag_name]]
+  data.frame(lag = seq(intervalo[1], intervalo[2]),
              tipo_plot = "Lags",
              lag_label = lag_name)}))
 
@@ -770,8 +775,8 @@ tipo_levels_plot <- c("Lags", "Lagknots nk=3", "Equalknots nk=3")
 df_knots$tipo_plot <- factor(df_knots$tipo_plot, levels = tipo_levels_plot)
 df_lags$tipo_plot   <- factor(df_lags$tipo_plot, levels = tipo_levels_plot)
 
-df_knots$lag_label <- factor(df_knots$lag_label, levels = c("lag_7", "lag_10", "lag_14", "lag_21"))
-df_lags$lag_label <- factor(df_lags$lag_label, levels = c("lag_7", "lag_10", "lag_14", "lag_21"))
+df_knots$lag_label <- factor(df_knots$lag_label, levels = c("lag_5", "lag_7", "lag_10", "lag_14", "lag_21"))
+df_lags$lag_label <- factor(df_lags$lag_label, levels = c("lag_5", "lag_7", "lag_10", "lag_14", "lag_21"))
 
 # Plot
 ggplot() +
@@ -985,18 +990,18 @@ resultados_max   <- avaliar_modelos(modelos_max, tipo = "max")
 
 # Juntar e ordenar pelo menor deviance média
 resultados <- bind_rows(resultados_media, resultados_max) %>%
-  arrange(deviance_media)
+  arrange(QAIC)
 
 # Visualizar resultados
 resultados
 
 # Mostrar apenas modelos com delta_QAIC < 5
-resultados_competitivos <- resultados %>%
-  filter(delta_QAIC < 5) %>%
+resultados_melhores <- resultados %>%
+  filter(delta_QAIC < 10) %>%
   arrange(QAIC)
 
 # Visualizar
-resultados_competitivos
+resultados_melhores
 
 
 
@@ -1160,7 +1165,7 @@ for(red_name in names(red_media)) {
   plot(red, 
        xlab = "Temperatura média (ºC)", 
        ylab = "Risco Relativo",
-       main = paste("Curva cumulativa temperatura–mortalidade:", red_name, "\n"),
+       main = paste("Curva cumulativa temperatura–mortalidade (mediana):", red_name, "\n"),
        xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
   
   axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
@@ -1256,7 +1261,7 @@ for(red_name in names(red_max)) {
   plot(red, 
        xlab = "Temperatura máxima (ºC)", 
        ylab = "Risco Relativo",
-       main = paste("Curva cumulativa temperatura–mortalidade:", red_name, "\n"),
+       main = paste("Curva cumulativa temperatura–mortalidade (mediana):", red_name, "\n"),
        xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
   
   axis(1, at = seq(floor(temp_max_min), ceiling(temp_max_max), by = 1))
@@ -1659,7 +1664,7 @@ for(red_name in names(red_media)) {
   plot(red, 
        xlab = "Temperatura média (ºC)", 
        ylab = "Risco Relativo",
-       main = paste("Curva cumulativa temperatura–mortalidade (MMT):", red_name),
+       main = paste("Curva cumulativa temperatura–mortalidade (MMT):", red_name, "\n"),
        xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
   
   axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
@@ -1738,7 +1743,7 @@ for(red_name in names(red_max)) {
   plot(red, 
        xlab = "Temperatura máxima (ºC)", 
        ylab = "Risco Relativo",
-       main = paste("Curva cumulativa temperatura–mortalidade (MMT):", red_name),
+       main = paste("Curva cumulativa temperatura–mortalidade (MMT):", red_name, "\n"),
        xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
   
   axis(1, at = seq(floor(temp_max_min), ceiling(temp_max_max), by = 1))
@@ -1915,384 +1920,4 @@ for(red_name in names(red_max)) {
 
 
 
-
-
-
-
-
-
-
-### 2014-2019 ####
-
-
-# Filtrar os dados
-dta_14_19 <- dta |> filter(lubridate::year(data) %in% 2014:2019)
-
-dta_14_19 <- dta_14_19 %>%
-  select(-ano, -grupo_anos, -strata, -temp_percentil, -fim_semana, -dia_semana)
-
-
-# Outliers
-
-# Calcular média e desvio padrão
-media <- mean(dta_14_19$temp_media, na.rm = TRUE)
-sd <- sd(dta_14_19$temp_media, na.rm = TRUE)
-
-# Intervalo
-limite_inferior <- media - 2.4*sd
-limite_superior <- media + 2.4*sd
-
-# Número de linhas antes
-n_antes <- nrow(dta_14_19)
-
-# Filtrar sobrescrevendo
-dta_14_19 <- dta_14_19 %>%
-  filter(temp_media >= limite_inferior,
-         temp_media <= limite_superior)
-
-# Número de linhas depois
-n_depois <- nrow(dta_14_19)
-
-# Quantos foram eliminados
-n_eliminados <- n_antes - n_depois
-n_eliminados
-
-
-# Strata
-dta_14_19 <- dta_14_19 |> 
-  mutate(strata = paste(year(data),
-                        month(data),
-                        wday(data, label = TRUE), 
-                        sep = ":") |> factor())
-
-#View(dta_14_19)
-
-
-# Nós dos splines de temperatura
-pred_knots_14_19 <- quantile(dta_14_19$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
-pred_knots_14_19
-
-
-# Matriz 'cross-basis' que combina o efeito não linear da temperatura e dos lags
-cb_14_19 <- crossbasis(dta_14_19$temp_media,
-                       lag = n_lag,
-                       argvar = list(fun = "ns", knots = pred_knots_14_19),
-                       arglag = list(fun = "ns", knots = lag_knots))
-
-
-# Modelo DLNM condicional (gnm) para o período
-modelo_14_19 <- gnm(obitos_total ~ cb_14_19,
-                    eliminate = strata,
-                    family = quasipoisson(),
-                    data = dta_14_19)
-
-
-# Valores extremos e central da temperatura média
-
-# Temperatura média mínima
-temp_media_min <- min(dta_14_19$temp_media)
-temp_media_min
-
-# Mediana da temperatura média
-temp_media_mediana <- median(dta_14_19$temp_media)
-temp_media_mediana
-
-# Temperatura média máxima
-temp_media_max <- max(dta_14_19$temp_media)
-temp_media_max
-
-
-# Redução da superfície temperatura–lag–mortalidade apenas para a dimensão da temperatura.
-red_14_19 <- crossreduce(cb_14_19,
-                         modelo_14_19,
-                         at = seq(temp_media_min, temp_media_max, by = 0.1),
-                         cen = temp_media_mediana)
-
-plot(red_14_19, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
-     main = "Curva cumulativa de associação entre temperatura e mortalidade (2014-2019) \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
-axis(1, at = seq(12, 32, by = 1))
-axis(2, at = seq(0.5, 4.5, by = 0.5))
-
-abline(v = temp_media_mediana, lty = 3, col = "black")
-
-legend("bottomright", inset = c(-0.2, 0), 
-       legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
-       lty = 3, col = "black", bty = "n")
-
-dev.copy(jpeg, filename = "curva_temp_mort_2014_2019.jpg", width = 21, height = 12, units = "in", res = 300)
-dev.off()
-
-
-# Reexecutamos e plotamos o modelo usando a nova temperatura de centralização (MMT).
-
-red_14_19 <- crossreduce(cb_14_19,
-                         modelo_14_19,
-                         at = seq(temp_media_min, temp_media_max, by = 0.1),
-                         cen = get_cen(red_14_19))
-
-# Estimar MMT
-mmt <- get_cen(red_14_19)
-mmt
-
-# Variáveis
-temp <- red_14_19$predvar
-rr <- red_14_19$RRfit
-
-# Separar abaixo e acima da MMT
-abaixo <- temp <= mmt
-acima <- temp >= mmt
-
-# Plot
-plot(red_14_19, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
-     main = "Curva cumulativa de associação entre temperatura e mortalidade (2014-2019) \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
-axis(1, at = seq(12, 32, by = 1))
-axis(2, at = seq(0.5, 4.5, by = 0.5))
-
-lines(temp[acima], rr[acima], col = "#D64933", lwd = 2)
-lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
-
-abline(v = mmt, lty = 3)
-
-legend("bottomright", inset = c(-0.496, 0),
-       legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
-       lty = 3, col = "black", bty = "n", cex = 1)
-
-dev.copy(jpeg, filename = "curva_temp_mort_MMT_2014_2019.jpg", width = 21, height = 12, units = "in", res = 300)
-dev.off()
-
-
-
-
-
-### 2020-2022 ####
-
-
-# Filtrar os dados
-dta_20_22 <- dta |> filter(lubridate::year(data) %in% 2020:2022)
-
-dta_20_22 <- dta_20_22 %>%
-  select(-ano, -grupo_anos, -strata, -temp_percentil, -fim_semana, -dia_semana)
-
-
-# Strata
-dta_20_22 <- dta_20_22 |> 
-  mutate(strata = paste(year(data),
-                        month(data),
-                        wday(data, label = TRUE), 
-                        sep = ":") |> factor())
-
-View(dta_20_22)
-
-
-# Nós dos splines de temperatura
-pred_knots_20_22 <- quantile(dta_20_22$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
-pred_knots_20_22
-
-
-# Matriz 'cross-basis' que combina o efeito não linear da temperatura e dos lags
-cb_20_22 <- crossbasis(dta_20_22$temp_media,
-                       lag = n_lag,
-                       argvar = list(fun = "ns", knots = pred_knots_20_22),
-                       arglag = list(fun = "ns", knots = lag_knots))
-
-
-# Modelo DLNM condicional (gnm) para o período
-modelo_20_22 <- gnm(obitos_total ~ cb_20_22,
-                    eliminate = strata,
-                    family = quasipoisson(),
-                    data = dta_20_22)
-
-
-# Valores extremos e central da temperatura média
-
-# Temperatura média mínima
-temp_media_min <- min(dta_20_22$temp_media)
-temp_media_min
-
-# Mediana da temperatura média
-temp_media_mediana <- median(dta_20_22$temp_media)
-temp_media_mediana
-
-# Temperatura média máxima
-temp_media_max <- max(dta_20_22$temp_media)
-temp_media_max
-
-
-# Redução da superfície temperatura–lag–mortalidade apenas para a dimensão da temperatura.
-red_20_22 <- crossreduce(cb_20_22,
-                         modelo_20_22,
-                         at = seq(temp_media_min, temp_media_max, by = 0.1),
-                         cen = temp_media_mediana)
-
-plot(red_20_22, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
-     main = "Curva cumulativa de associação entre temperatura e mortalidade (2020-2022) \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
-axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
-axis(2, at = seq(0.5, 4.5, by = 0.5))
-
-abline(v = temp_media_mediana, lty = 3, col = "black")
-
-legend("bottomright", inset = c(-0.2, 0), 
-       legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
-       lty = 3, col = "black", bty = "n")
-
-dev.copy(jpeg, filename = "curva_temp_mort_2020_2022.jpg", width = 21, height = 12, units = "in", res = 300)
-dev.off()
-
-
-# Reexecutamos e plotamos o modelo usando a nova temperatura de centralização (MMT).
-
-red_20_22 <- crossreduce(cb_20_22,
-                         modelo_20_22,
-                         at = seq(temp_media_min, temp_media_max, by = 0.1),
-                         cen = get_cen(red_20_22))
-
-# Estimar MMT
-mmt <- get_cen(red_20_22)
-
-# Variáveis
-temp <- red_20_22$predvar
-rr <- red_20_22$RRfit
-
-# Separar abaixo e acima da MMT
-abaixo <- temp <= mmt
-acima <- temp >= mmt
-
-# Plot final
-plot(red_20_22, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
-     main = "Curva cumulativa de associação entre temperatura e mortalidade (2020-2022) \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
-axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
-axis(2, at = seq(0.5, 4.5, by = 0.5))
-
-lines(temp[acima], rr[acima], col = "#D64933", lwd = 2)
-lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
-
-abline(v = mmt, lty = 3)
-
-legend("bottomright", inset = c(-0.496, 0),
-       legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
-       lty = 3, col = "black", bty = "n", cex = 1)
-
-dev.copy(jpeg, filename = "curva_temp_mort_MMT_2020_2022.jpg", width = 21, height = 12, units = "in", res = 300)
-dev.off()
-
-
-
-
-
-### 2023-2024 ####
-
-
-# Filtrar os dados
-dta_23_24 <- dta |> filter(lubridate::year(data) %in% 2023:2024)
-
-dta_23_24 <- dta_23_24 %>%
-  select(-ano, -grupo_anos, -strata, -temp_percentil, -fim_semana, -dia_semana)
-
-
-# Strata
-dta_23_24 <- dta_23_24 |> 
-  mutate(strata = paste(year(data),
-                        month(data),
-                        wday(data, label = TRUE), 
-                        sep = ":") |> factor())
-
-View(dta_23_24)
-
-
-# Nós dos splines de temperatura
-pred_knots_23_24 <- quantile(dta_23_24$temp_media, c(10, 75, 90)/100, na.rm = TRUE)
-pred_knots_23_24
-
-
-# Matriz 'cross-basis' que combina o efeito não linear da temperatura e dos lags
-cb_23_24 <- crossbasis(dta_23_24$temp_media,
-                       lag = n_lag,
-                       argvar = list(fun = "ns", knots = pred_knots_23_24),
-                       arglag = list(fun = "ns", knots = lag_knots))
-
-
-# Modelo DLNM condicional (gnm) para o período
-modelo_23_24 <- gnm(obitos_total ~ cb_23_24,
-                    eliminate = strata,
-                    family = quasipoisson(),
-                    data = dta_23_24)
-
-
-# Valores extremos e central da temperatura média
-
-# Temperatura média mínima
-temp_media_min <- min(dta_23_24$temp_media)
-temp_media_min
-
-# Mediana da temperatura média
-temp_media_mediana <- median(dta_23_24$temp_media)
-temp_media_mediana
-
-# Temperatura média máxima
-temp_media_max <- max(dta_23_24$temp_media)
-temp_media_max
-
-
-# Redução da superfície temperatura–lag–mortalidade apenas para a dimensão da temperatura.
-red_23_24 <- crossreduce(cb_23_24,
-                         modelo_23_24,
-                         at = seq(temp_media_min, temp_media_max, by = 0.1),
-                         cen = temp_media_mediana)
-
-plot(red_23_24, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
-     main = "Curva cumulativa de associação entre temperatura e mortalidade (2023-2024) \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
-axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
-axis(2, at = seq(0.5, 4.5, by = 0.5))
-
-abline(v = temp_media_mediana, lty = 3, col = "black")
-
-legend("bottomright", inset = c(-0.2, 0), 
-       legend = paste("Mediana:", round(temp_media_mediana, 1), "°C"),
-       lty = 3, col = "black", bty = "n")
-
-dev.copy(jpeg, filename = "curva_temp_mort_2023_2024.jpg", width = 21, height = 12, units = "in", res = 300)
-dev.off()
-
-
-# Reexecutamos e plotamos o modelo usando a nova temperatura de centralização (MMT).
-
-red_23_24 <- crossreduce(cb_23_24,
-                         modelo_23_24,
-                         at = seq(temp_media_min, temp_media_max, by = 0.1),
-                         cen = get_cen(red_23_24))
-
-# Estimar MMT
-mmt <- get_cen(red_23_24)
-
-# Variáveis
-temp <- red_23_24$predvar
-rr <- red_23_24$RRfit
-
-# Separar abaixo e acima da MMT
-abaixo <- temp <= mmt
-acima <- temp >= mmt
-
-# Plot final
-plot(red_23_24, xlab = "Temperatura (ºC)", ylab = "Risco Relativo",
-     main = "Curva cumulativa de associação entre temperatura e mortalidade (2023-2024) \n",
-     xaxt = "n", yaxt = "n", ylim = c(0.5, 4.5), lwd = 2)
-axis(1, at = seq(floor(temp_media_min), ceiling(temp_media_max), by = 1))
-axis(2, at = seq(0.5, 4.5, by = 0.5))
-
-lines(temp[acima], rr[acima], col = "#D64933", lwd = 2)
-lines(temp[abaixo], rr[abaixo], col = "#253C9C", lwd = 2)
-
-abline(v = mmt, lty = 3)
-
-legend("bottomright", inset = c(-0.496, 0),
-       legend = paste0("Temperatura mínima de mortalidade: ", round(mmt, 1), " ºC"),
-       lty = 3, col = "black", bty = "n", cex = 1)
-
-dev.copy(jpeg, filename = "curva_temp_mort_MMT_2023_2024.jpg", width = 21, height = 12, units = "in", res = 300)
-dev.off()
 
