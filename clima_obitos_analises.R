@@ -1801,7 +1801,7 @@ for(red_name in names(red_media)) {
     geom_ribbon(aes(ymin = rr_low, ymax = rr_high), fill = "grey80", alpha = 0.8) +
     geom_line(color = "black", linewidth = 1) +
     vlines_perc + hline +
-    scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
+    #scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
     labs(title = paste("Temperatura relativa (percentis):", red_name),
          x = "", y = "Risco Relativo (log)") +
     theme_minimal(base_size = 14)
@@ -1812,7 +1812,7 @@ for(red_name in names(red_media)) {
     geom_line(color = "black", linewidth = 1) +
     vlines + hline +
     scale_x_continuous(breaks = seq(12, 39, by = 1), limits = c(12, 39)) +
-    scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
+    #scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
     labs(title = paste("Temperatura absoluta (°C):", red_name),
          x = "", y = "") +
     theme_minimal(base_size = 14)
@@ -1821,7 +1821,7 @@ for(red_name in names(red_media)) {
   p_c <- ggplot(dta, aes(x = temp_percentil)) +
     geom_histogram(aes(y = after_stat(density)), binwidth = 2, fill = "grey60", color = "white") +
     vlines_perc +
-    scale_y_continuous(breaks = seq(0, 0.15, by = 0.05), limits = c(0, 0.15)) +
+    #scale_y_continuous(breaks = seq(0, 0.15, by = 0.05), limits = c(0, 0.15)) +
     labs(title = "Distribuição temperatura (percentis)",
          x = "Percentis", y = "Densidade") +
     theme_minimal(base_size = 14)
@@ -1830,7 +1830,7 @@ for(red_name in names(red_media)) {
   p_d <- ggplot(dta, aes(x = temp_media)) +
     geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "grey60", color = "white") +
     vlines +
-    scale_x_continuous(breaks = seq(12, 39, by = 1), limits = c(12, 39)) +
+    #scale_x_continuous(breaks = seq(12, 39, by = 1), limits = c(12, 39)) +
     labs(title = "Distribuição temperatura (°C)",
          x = "Temperatura (°C)", y = "") +
     theme_minimal(base_size = 14)
@@ -1873,7 +1873,7 @@ for(red_name in names(red_max)) {
     geom_ribbon(aes(ymin = rr_low, ymax = rr_high), fill = "grey80", alpha = 0.8) +
     geom_line(color = "black", linewidth = 1) +
     vlines_perc + hline +
-    scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
+    #scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
     labs(title = paste("Temperatura relativa (percentis):", red_name),
          x = "", y = "Risco Relativo (log)") +
     theme_minimal(base_size = 14)
@@ -1884,7 +1884,7 @@ for(red_name in names(red_max)) {
     geom_line(color = "black", linewidth = 1) +
     vlines + hline +
     scale_x_continuous(breaks = seq(12, 39, by = 1), limits = c(12, 39)) +
-    scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
+    #scale_y_log10(breaks = c(0.8, 1, 1.5, 2, 2.5)) +
     labs(title = paste("Temperatura absoluta (°C):", red_name),
          x = "", y = "") +
     theme_minimal(base_size = 14)
@@ -1893,7 +1893,7 @@ for(red_name in names(red_max)) {
   p_c <- ggplot(dta, aes(x = temp_percentil)) +
     geom_histogram(aes(y = after_stat(density)), binwidth = 2, fill = "grey60", color = "white") +
     vlines_perc +
-    scale_y_continuous(breaks = seq(0, 0.15, by = 0.05), limits = c(0, 0.15)) +
+    #scale_y_continuous(breaks = seq(0, 0.15, by = 0.05), limits = c(0, 0.15)) +
     labs(title = "Distribuição temperatura (percentis)",
          x = "Percentis", y = "Densidade") +
     theme_minimal(base_size = 14)
@@ -1902,7 +1902,7 @@ for(red_name in names(red_max)) {
   p_d <- ggplot(dta, aes(x = temp_max)) +
     geom_histogram(aes(y = after_stat(density)), binwidth = 1, fill = "grey60", color = "white") +
     vlines +
-    scale_x_continuous(breaks = seq(12, 39, by = 1), limits = c(12, 39)) +
+    #scale_x_continuous(breaks = seq(12, 39, by = 1), limits = c(12, 39)) +
     labs(title = "Distribuição temperatura (°C)",
          x = "Temperatura (°C)", y = "") +
     theme_minimal(base_size = 14)
