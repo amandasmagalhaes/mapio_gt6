@@ -1921,3 +1921,100 @@ for(red_name in names(red_max)) {
 
 
 
+
+
+
+
+### temp_max_knots_50_90_lag_21_equally ####
+
+# Selecionar apenas o modelo desejado
+red_name <- "temp_max_knots_50_90_lag_21_equally"
+red <- red_max[[red_name]]
+
+# Definir knots
+knots_vals <- knots_max$knots_50_90
+knots_label <- c("50", "90")
+knots_text <- paste0(knots_label, ": ", round(knots_vals, 1), "°C")
+
+# Percentis de interesse
+percentis <- c(0.95, 0.98, 0.99)
+perc_vals <- quantile(dta$temp_max, percentis, na.rm = TRUE)
+
+# MMT
+mmt <- get_cen(red)
+
+# Criar texto da legenda para percentis
+perc_text <- paste0(gsub("%","", names(perc_vals)), ": ", round(perc_vals, 1), "°C", collapse = "; ")
+
+# Criar arquivo JPEG no diretório atual
+file_path <- paste0(red_name, "_mmt.jpg")
+jpeg(filename = file_path, width = 12, height = 8, units = "in", res = 300)
+
+par(mar = c(7, 4, 4, 2)) 
+plot(red, 
+     xlab = "Temperatura máxima (ºC)", 
+     ylab = "Risco Relativo",
+     main = paste("Curva cumulativa temperatura–mortalidade \n"),
+     xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
+
+axis(1, at = seq(floor(temp_max_min), ceiling(temp_max_max), by = 1))
+axis(2, at = seq(0.5, 3.0, by = 0.5))
+
+# Linhas verticais
+abline(v = mmt, lty = 2, col = "#253C9C", lwd = 2.5)
+abline(v = knots_vals, lty = 4, col = "#35b779", lwd = 2)
+abline(v = perc_vals, lty = 3, col = "#D64933", lwd = 2)
+
+# Legenda
+legend(x = "bottomleft", 
+       legend = c(
+         paste("Temperatura Mínima de Mortalidade - MMT (percentil 59):", round(mmt, 1), "°C"),
+         paste("Knots (percentil):", paste(knots_text, collapse = "; ")),
+         paste("Percentis:", perc_text)
+       ),
+       lty = c(2, 4, 3), 
+       col = c("#253C9C", "#35b779", "#D64933"), 
+       lwd = c(2.5, 2, 2),
+       bty = "n", 
+       horiz = FALSE, 
+       xpd = TRUE, 
+       inset = c(0, -0.25),
+       cex = 0.8) 
+
+dev.off()
+
+
+
+
+
+# Percentis de interesse
+get_cen(red_max$temp_max_knots_50_90_lag_21_equally)
+
+percentis_teste <- c(0.59, 0.90, 0.95, 0.98, 0.99)
+percentis_teste_v2 <- quantile(dta$temp_max, percentis_teste, na.rm = TRUE)
+
+# Selecionar apenas o modelo desejado
+red <- red_max_mmt[["temp_max_knots_50_90_lag_21_equally"]]
+
+# Definir temperaturas de interesse: percentis 59%, 90%, 95%, 98%, 99%
+percentis <- c(0.59, 0.90, 0.95, 0.98, 0.99)
+temp_interesse <- quantile(dta$temp_max, percentis, na.rm = TRUE)
+names(temp_interesse) <- c("59%", "90%", "95%", "98%", "99%")
+
+# Extrair RRs para essas temperaturas
+rr_valores <- sapply(temp_interesse, function(t){
+  # Encontrar a temperatura mais próxima no modelo
+  idx <- which.min(abs(red$predvar - t))
+  c(RR = red$RRfit[idx], 
+    RR_low = red$RRlow[idx], 
+    RR_high = red$RRhigh[idx])
+})
+
+# Transpor para melhor visualização
+rr_valores <- t(rr_valores)
+
+# Arredondar todos os valores para 1 casa decimal
+rr_valores <- round(rr_valores, 2)
+
+# Mostrar o resultado final
+rr_valores
