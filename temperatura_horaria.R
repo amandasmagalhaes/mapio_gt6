@@ -56,8 +56,8 @@ summary(dta)
 # Converter hora para número decimal
 # Ex.: 21:30 -> 21.5
 dta <- dta %>%
-  mutate(hora_dec = hour(hms(paste0(hora_utc, ":00"))) + 
-           minute(hms(paste0(hora_utc, ":00")))/60)
+  mutate(hora_dec = hour(hms(paste0(hora, ":00"))) + 
+           minute(hms(paste0(hora, ":00")))/60)
 
 # Transformar nível de alerta em numérico (0 a 5)
 dta$nivel_alerta <- as.numeric(dta$nivel_alerta)
@@ -71,8 +71,8 @@ dta$nivel_alerta <- as.numeric(dta$nivel_alerta)
 
 
 # Gráfico de linhas de todos os dias de 2024, mostrando variação horária
-ggplot(dta %>% filter(data_utc >= as.Date("2024-01-01")), 
-       aes(x = hora_dec, y = temperatura_maxima, group = data_utc)) +
+ggplot(dta %>% filter(data >= as.Date("2024-01-01")), 
+       aes(x = hora_dec, y = temperatura_maxima, group = data)) +
   geom_line(alpha = 0.1, color = "darkblue", linewidth = 0.3) +
   geom_smooth(aes(group = 1), color = "red", se = FALSE, linewidth = 0.8) +
   labs(x = "\nHora do dia", 
@@ -129,26 +129,36 @@ dist_horaria <- dta %>%
                                                 "Alerta 2 (33,1–34,5)",
                                                 "Alerta 3 (34,6–35,8)",
                                                 "Alerta 4 (>35,8)"))) %>%
-  group_by(hora_utc, nivel_alerta_class) %>%
+  group_by(hora, nivel_alerta_class) %>%
   summarise(n = n(), .groups = "drop") %>%
-  group_by(hora_utc) %>%
+  group_by(hora) %>%
   mutate(proporcao = n / sum(n))
 
 # Paleta azul → vermelho
-paleta_alerta <- c("MMT (29,3–31,9)" = "#4575b4",
+paleta_alerta <- c("MMT (29,3–31,9)" = "#D8D8D8",
                    "Alerta 1 (32,0–33,0)" = "#91bfdb",
                    "Alerta 2 (33,1–34,5)" = "#fee090",
                    "Alerta 3 (34,6–35,8)" = "#fc8d59",
                    "Alerta 4 (>35,8)" = "#d73027")
 
 # Plot
-ggplot(dist_horaria, aes(x = hora_utc, y = n, fill = nivel_alerta_class)) +
+dist_horaria <- ggplot(dist_horaria, aes(x = hora, y = n, fill = nivel_alerta_class)) +
   geom_col(position = "stack") +
-  labs(x = "\n Hora UTC", y = "Número de observações \n", fill = "Nível de alerta") +
+  labs(x = "\n Hora", y = "Número de observações \n", fill = "Nível de alerta") +
   scale_fill_manual(values = paleta_alerta) +
-  theme_minimal()
+  scale_y_continuous(limits = c(0, 1500), breaks = seq(0, 1500, by = 250)) +
+  theme_minimal(base_size = 16) +
+  theme(
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    legend.title = element_text(size = 16),
+    legend.text = element_text(size = 16),
+    panel.grid.major = element_line(color = "gray97"),
+    panel.grid.minor = element_line(color = "gray97"))
+dist_horaria
 
-
+ggsave(filename = "dist_horaria.jpg", plot = dist_horaria,
+       width = 21, height = 12, units = "in", dpi = 300)
 
 
 
@@ -159,29 +169,30 @@ ggplot(dist_horaria, aes(x = hora_utc, y = n, fill = nivel_alerta_class)) +
 # capturando padrões não-lineares tanto dentro do dia quanto entre os dias.
 
 # Justificativa do modelo:
-# 1. A temperatura varia ao longo do dia (hora_dec), com picos e vales previsíveis.
-# 2. Existe tendência de longo prazo entre dias (data_utc), que pode ser sazonal ou anual.
+# 1. s(hora_dec, bs="cc"): spline cíclico para hora do dia, capturando os picos e vales previsíveis
+#    ao longo do ciclo diário e garantindo continuidade entre 0h e 24h.
+# 2. s(as.numeric(data), bs="cs"): spline cúbico penalizado para tendência de longo prazo entre dias,
+#    permitindo ajustar sazonalidades e variações anuais sem superajuste.
 # 3. O GAM permite ajustar curvas suaves (splines) sem assumir forma linear rígida.
 # 4. 's()' define uma função spline que suaviza os dados, capturando não-linearidades.
-# 5. bs = "cs" indica cubic splines com penalização, evitando superajuste.
 
 modelo_gam <- gam(temperatura_maxima ~ 
-                    s(hora_dec, bs="cs") + 
-                    s(as.numeric(data_utc), bs="cs"),
+                    s(hora_dec, bs="cc") + 
+                    s(as.numeric(data), bs="cs"),
                   data = dta)
 
 # Resumo do modelo
 summary(modelo_gam)
 
-# Interpretação:
-# 1. A spline de hora_dec mostra como a temperatura muda durante o dia,
+# Interpretação do GAM:
+# 1. A spline de hora_dec mostra a variação da temperatura ao longo do dia,
 #    capturando picos (ex.: meio-dia) e vales (ex.: madrugada).
-# 2. A spline de data_utc mostra tendências ao longo do tempo,
-#    como aumento gradual, sazonalidade ou variações sazonais.
-# 3. A combinação dessas duas componentes permite gerar previsões
-#    suaves da temperatura para cada hora de cada dia.
-# 4. Essa modelagem será útil para analisar a relação com o nível de alerta,
-#    porque permite estimar a temperatura esperada em cada hora, suavizando ruídos pontuais.
+# 2. A spline de data representa tendências de longo prazo entre dias,
+#    incluindo aumento gradual, sazonalidade ou variações anuais.
+# 3. A combinação dessas duas componentes permite gerar previsões suaves
+#    da temperatura para cada hora de cada dia.
+# 4. Esse modelo é útil para analisar a relação com os níveis de alerta,
+#    pois fornece estimativas esperadas de temperatura, reduzindo o efeito de ruídos pontuais.
 
 
 
@@ -200,7 +211,7 @@ dta <- dta %>%
 ## Métricas de variação diária ####
 
 metricas_diarias <- dta %>%
-  group_by(data_utc) %>%
+  group_by(data) %>%
   summarise(
     amplitude = max(previsao) - min(previsao),  # diferença entre pico e vale do dia
     sd_temp = sd(previsao)                       # dispersão da temperatura durante o dia
@@ -216,12 +227,25 @@ grid_media <- dta %>%
   group_by(hora_dec) %>%
   summarise(temp_media = mean(previsao))
 
-ggplot(grid_media, aes(x = hora_dec, y = temp_media)) +
-  geom_line(color = "red", linewidth = 1.2) +
-  labs(x = "\n Hora do dia",
-       y = "Temperatura máxima (°C) \n",
-       title = "Curva média horária da temperatura máxima \n") +
-  theme_minimal()
+curva_horaria <- ggplot(grid_media, aes(x = hora_dec, y = temp_media)) +
+  geom_line(color = "#d73027", linewidth = 1.2) +
+  labs(x = "\n Hora",
+       y = "Temperatura máxima (°C) \n") +
+  scale_x_continuous(limits = c(0, 23), 
+                     breaks = seq(0, 23, by = 1),
+                     labels = function(x) sprintf("%02d:00", x)) +
+  scale_y_continuous(limits = c(17, 30), breaks = seq(17, 30, by = 2)) +
+  theme_minimal(base_size = 16) +
+  theme(axis.title = element_text(size = 16),
+        axis.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 16),
+        panel.grid.major = element_line(color = "gray97"),
+        panel.grid.minor = element_line(color = "gray97"))
+curva_horaria
+
+ggsave(filename = "curva_horaria.jpg", plot = curva_horaria,
+       width = 21, height = 12, units = "in", dpi = 300)
 
 # Interpretação:
 # - Linha vermelha representa a temperatura média ao longo do dia

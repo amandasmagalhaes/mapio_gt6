@@ -1954,7 +1954,6 @@ par(mar = c(7, 4, 4, 2))
 plot(red, 
      xlab = "Temperatura máxima (ºC)", 
      ylab = "Risco Relativo",
-     main = paste("Curva cumulativa temperatura–mortalidade \n"),
      xaxt = "n", yaxt = "n", ylim = c(0.5, 3.0), lwd = 2)
 
 axis(1, at = seq(floor(temp_max_min), ceiling(temp_max_max), by = 1))
@@ -1963,7 +1962,7 @@ axis(2, at = seq(0.5, 3.0, by = 0.5))
 # Linhas verticais
 abline(v = mmt, lty = 2, col = "#253C9C", lwd = 2.5)
 abline(v = knots_vals, lty = 4, col = "#35b779", lwd = 2)
-abline(v = perc_vals, lty = 3, col = "#D64933", lwd = 2)
+abline(v = perc_vals, lty = 3, col = "#d73027", lwd = 2)
 
 # Legenda
 legend(x = "bottomleft", 
